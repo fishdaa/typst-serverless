@@ -90,10 +90,22 @@ Getting started flow: user selects use case (container, Lambda, REST API, ECR) �
 |-------|----------|-------------|
 | main.typ | Yes | Source document; multipart if REST |
 | custom fonts | No | Use Typst default fonts if not provided |
-| assets | No | Images, logos, etc. |
+| assets | No | Images, logos, etc.; validated to Typst-supported types only (PNG, JPEG, GIF, WebP, SVG; supported fonts) |
 | data.json | No | JSON data for template binding |
 
 **Param formats:** S3 keys (per file), S3 folder (main.typ path defined; `data.json` default if present in folder), base64, or inline.
+
+**Request validations (Lambda / API Gateway):**
+
+| Validation | Lambda | API Gateway | Description |
+|------------|--------|-------------|-------------|
+| Payload/body size | 6MB sync, 256KB async | 10MB (REST API) | Reject oversized requests; return 413/400 with clear error |
+| Event/body schema | Required | Optional JSON Schema | Validate structure; required fields (main.typ or S3 ref); reject malformed |
+| document_id format | On status/retrieve | Path param `:id` | Validate ID format; return 400/404 for invalid |
+| S3 key validation | Yes | Yes | Reject path traversal (`../`); valid key charset; bucket scope |
+| Content-Type | N/A | multipart vs application/json | Validate per endpoint; reject unsupported |
+| Rate limiting | Concurrency (Lambda) | Usage plans, throttling | Configurable limits; 429 when exceeded |
+| Input sanitization | Yes | Yes | Reject invalid chars, oversized strings; fail fast |
 
 **Parameter passing by mode:**
 
@@ -106,6 +118,8 @@ Getting started flow: user selects use case (container, Lambda, REST API, ECR) �
 ---
 
 ## Testing
+
+**Principle:** Write tests first. Define test specs, fixtures, and integration cases at the start of each phase; implement features to satisfy them.
 
 **Core (`src/core`):**
 - Unit tests — compile logic, input parsing, state interface (Jest, Vitest, or Node test runner)
@@ -125,8 +139,8 @@ Getting started flow: user selects use case (container, Lambda, REST API, ECR) �
 | Phase | Testing scope |
 |-------|---------------|
 | 1 | Core unit tests; container integration tests |
-| 2 | Lambda integration tests (SAM Local or LocalStack) |
-| 3 | Param-format tests; E2E for REST (API Gateway) |
+| 2 | Lambda integration tests (SAM Local or LocalStack); event validation (schema, size, S3 keys) |
+| 3 | Param-format tests; request validation (size, schema, path); E2E for REST (API Gateway) |
 | 4 | E2E for webhooks and batch |
 
 ---
@@ -139,13 +153,13 @@ Getting started flow: user selects use case (container, Lambda, REST API, ECR) �
 
 | Milestone | Deliverables |
 |-----------|--------------|
-| 1.1 | `Dockerfile` — Base on Typst image, copy fonts/templates; Lambda uses separate Node + Layer |
-| 1.2 | `docker-compose.yml` — Profiles for container configurtions: volume, state, pipe, volume+pipe |
-| 1.3 | `src/core` + adapters — Core; container (CLI); lambda-layer (Node.js + Typst Layer) |
-| 1.4 | `README.md` — Build and usage instructions |
+| 1.1 | Testing — Core unit test spec and Typst fixtures; container integration test cases (write first) |
+| 1.2 | `Dockerfile` — Base on Typst image, copy fonts/templates; Lambda uses separate Node + Layer |
+| 1.3 | `docker-compose.yml` — Profiles for container configurtions: volume, state, pipe, volume+pipe |
+| 1.4 | `src/core` + adapters — Core; container (CLI); lambda-layer (Node.js + Typst Layer) |
 | 1.5 | Storage — Support both named volume (default) and bind mount (user-defined folder) |
 | 1.6 | Core + adapters — `adapters/container`, `adapters/lambda-layer` |
-| 1.7 | Testing — Core unit tests; container integration tests; Typst fixtures |
+| 1.7 | `README.md` — Build and usage instructions |
 | 1.8 | Docs — `docs/getting-started.md`; `docs/container/` branch (volume, pipe, state use cases) |
 
 **Storage options:** Named volume (internal) or bind mount (user-defined folder). Both supported in all container configurtions.
@@ -199,16 +213,18 @@ Client (AWS SDK) → Lambda (Node.js + Layer) → DynamoDB (state)
 | Async invocation | Submit job, get `document_id`, poll for status or result |
 | Retrieve by ID | Fetch compiled PDF or status via `document_id` |
 | Document status checking | Query document status (pending, compiling, completed, failed) by `document_id` without fetching PDF |
-| One-click deploy | Single command (e.g. `npx pulumi up` or deploy script) deploys full AWS stack; minimal config; outputs endpoints/URLs | Single command (e.g. `npx pulumi up` or deploy script) deploys full AWS stack; minimal config; outputs endpoints/URLs |
+| File expiry | S3 lifecycle rules for output bucket; configurable retention for PDFs and temp objects when S3 storage is used |
+| Lambda validations | Event schema validation; payload size (6MB sync, 256KB async); S3 key path validation (no traversal); document_id format on status/retrieve |
+| One-click deploy | Single command (e.g. `npx pulumi up` or deploy script) deploys full AWS stack; minimal config; outputs endpoints/URLs |
 
 | Milestone | Tasks |
 |-----------|-------|
-| 2.1 | IaC — Pulumi in `adapters/lambda-layer/pulumi/` for Lambda (Node.js + Layer), DynamoDB, S3 |
-| 2.2 | Lambda — Node.js handler: parse event → typst compile (via Layer) → default multipart response; optional S3 storage |
-| 2.3 | DynamoDB — Table: `document_id` PK, `status`, `s3_key`, timestamps |
-| 2.4 | IAM — Lambda role for DynamoDB, S3, CloudWatch Logs |
-| 2.5 | ECR — (Optional) Push container image to ECR for ECS/EKS; Lambda uses Node + Layer, not container |
-| 2.6 | Testing — Lambda integration tests (SAM Local or LocalStack) |
+| 2.1 | Testing — Lambda integration tests (SAM Local or LocalStack); event validation tests (schema, size, S3 keys) — write first |
+| 2.2 | IaC — Pulumi in `adapters/lambda-layer/pulumi/` for Lambda (Node.js + Layer), DynamoDB, S3; S3 lifecycle rules for file expiry (configurable) |
+| 2.3 | Lambda — Node.js handler: parse event; validate schema, size, S3 keys; typst compile (via Layer) → default multipart response; optional S3 storage |
+| 2.4 | DynamoDB — Table: `document_id` PK, `status`, `s3_key`, timestamps |
+| 2.5 | IAM — Lambda role for DynamoDB, S3, CloudWatch Logs |
+| 2.6 | ECR — (Optional) Push container image to ECR for ECS/EKS; Lambda uses Node + Layer, not container |
 | 2.7 | Docs — `docs/lambda/` branch (SDK invoke, multipart, S3, DynamoDB use cases) |
 | 2.8 | One-click deploy — Single command to deploy Lambda + DynamoDB + S3 (optionally API Gateway); documented in README and `docs/getting-started.md` |
 
@@ -224,15 +240,18 @@ Client (AWS SDK) → Lambda (Node.js + Layer) → DynamoDB (state)
 |---------|-------------|
 | Custom fonts | Support custom font paths in event/config |
 | Asset injection | Images, logos via S3 paths or base64 |
+| Asset validations | Validate asset file types; allow only Typst-supported formats (PNG, JPEG, GIF, WebP, SVG for images; supported font formats); reject unsupported types before compile |
 | API Gateway | HTTP endpoints: `POST /compile`, `GET /documents/:id`; no auth by default |
+| API Gateway validations | Request body size limit (10MB); request validation (JSON Schema / OpenAPI); path param validation (`:id`); Content-Type (multipart vs JSON); usage plans and throttling (429); CORS config |
 | S3 delivery | Option to store PDF in S3 (customer-specified bucket/path or default); return presigned URL; default remains multipart |
+| File expiry | S3 lifecycle rules; configurable retention for output bucket; per-bucket or per-prefix policies |
 
 | Milestone | Tasks |
 |-----------|-------|
-| 3.1 | Fonts/assets — Document and support custom fonts, image injection |
-| 3.2 | API Gateway — Pulumi (in lambda adapter): REST or HTTP API; no auth by default |
-| 3.3 | S3 delivery — Customer-owned S3 destination; presigned URL return |
-| 3.4 | Testing — Param-format tests (S3 keys, base64, inline, S3 folder); E2E for REST (multipart, API Gateway) |
+| 3.1 | Testing — Param-format tests; asset validation tests; payload size, schema, path validation (reject invalid); E2E REST spec (multipart, API Gateway) — write first |
+| 3.2 | Fonts/assets — Document and support custom fonts, image injection; asset type validation (Typst-supported only) |
+| 3.3 | API Gateway — Pulumi (in lambda adapter): REST or HTTP API; request validation; throttling; no auth by default |
+| 3.4 | S3 delivery — Customer-owned S3 destination; presigned URL return; S3 lifecycle rules for file expiry |
 | 3.5 | Docs — `docs/api/` branch (REST endpoints); `docs/api/auth.md` — how to add IAM or API key auth; update `docs/getting-started.md` |
 
 ---
@@ -251,9 +270,9 @@ Client (AWS SDK) → Lambda (Node.js + Layer) → DynamoDB (state)
 
 | Milestone | Tasks |
 |-----------|-------|
-| 4.1 | Output options — PDF variants, optional SVG/PNG |
-| 4.2 | Webhooks — Invoke user URL on completion |
-| 4.3 | Batch — Support multi-document compile flows |
-| 4.4 | Testing — E2E for webhooks and batch |
+| 4.1 | Testing — E2E test spec for webhooks and batch — write first |
+| 4.2 | Output options — PDF variants, optional SVG/PNG |
+| 4.3 | Webhooks — Invoke user URL on completion |
+| 4.4 | Batch — Support multi-document compile flows |
 | 4.5 | Docs — `docs/ecr/` (optional); complete getting-started branching |
 
