@@ -1,0 +1,27 @@
+# Phase 1: Container profiles (volume, state, pipe, volume+pipe)
+# Usage: docker compose --profile <profile> run typst
+# Or: docker run -v $(pwd):/workspace -e TYPST_* serverless-typst
+
+services:
+  typst:
+    build: .
+    image: serverless-typst:latest
+    profiles:
+      - volume
+      - volume-state
+      - pipe
+      - volume-pipe
+    volumes:
+      - typst-workspace:/workspace
+    environment:
+      TYPST_WORKSPACE: /workspace
+      TYPST_MAIN: main.typ
+      TYPST_OUTPUT: output.pdf
+    # Override per profile:
+    # --profile volume: defaults above
+    # --profile volume-state: add TYPST_STATE=true
+    # --profile pipe: add TYPST_PIPE=true
+    # --profile volume-pipe: add TYPST_STATE=true TYPST_PIPE=true
+
+volumes:
+  typst-workspace:

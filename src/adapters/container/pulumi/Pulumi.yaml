@@ -1,0 +1,5 @@
+name: serverless-typst-container
+runtime: nodejs
+description: Pulumi stack for container deployment (docker-compose or ECS)
+config:
+  serverless-typst:imageTag: latest

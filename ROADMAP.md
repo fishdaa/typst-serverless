@@ -166,6 +166,9 @@ Getting started flow: user selects use case (container, Lambda, REST API, ECR) �
 
 **Project layout:**
 ```
+├── assets/
+│   ├── fonts/          (optional)
+│   └── templates/      (optional)
 ├── docs/               # Getting started (branches by use case); container, lambda, api, ecr
 ├── src/
 │   ├── core/           # Compile logic, state interface
@@ -176,8 +179,6 @@ Getting started flow: user selects use case (container, Lambda, REST API, ECR) �
 │           └── pulumi/  # Lambda Node.js + Typst Layer
 ├── Dockerfile
 ├── docker-compose.yml
-├── fonts/              (optional)
-├── templates/          (optional)
 ├── test/               # Unit and integration tests, fixtures
 └── README.md
 ```
