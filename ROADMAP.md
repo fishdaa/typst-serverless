@@ -79,7 +79,7 @@ src/
 | `docs/getting-started.md` | Entry point; branches to use-case-specific sections |
 | `docs/container/` | Docker / container use cases (volume, pipe, state) |
 | `docs/lambda/` | Lambda (SDK) use cases (sync, async, S3, DynamoDB) |
-| `docs/api/` | REST / API Gateway use cases (Phase 3) |
+| `docs/api/` | REST / API Gateway use cases (Phase 3); includes optional auth setup guide |
 | `docs/ecr/` | ECR / ECS / EKS use cases (optional) |
 
 Getting started flow: user selects use case (container, Lambda, REST API, ECR) → links to relevant branch section. Each branch covers setup, input formats, and output handling for that use case. Docs milestones per phase below.
@@ -224,16 +224,16 @@ Client (AWS SDK) → Lambda (Node.js + Layer) → DynamoDB (state)
 |---------|-------------|
 | Custom fonts | Support custom font paths in event/config |
 | Asset injection | Images, logos via S3 paths or base64 |
-| API Gateway | HTTP endpoints: `POST /compile`, `GET /documents/:id` |
+| API Gateway | HTTP endpoints: `POST /compile`, `GET /documents/:id`; no auth by default |
 | S3 delivery | Option to store PDF in S3 (customer-specified bucket/path or default); return presigned URL; default remains multipart |
 
 | Milestone | Tasks |
 |-----------|-------|
 | 3.1 | Fonts/assets — Document and support custom fonts, image injection |
-| 3.2 | API Gateway — Pulumi (in lambda adapter): REST or HTTP API, IAM or API key auth |
+| 3.2 | API Gateway — Pulumi (in lambda adapter): REST or HTTP API; no auth by default |
 | 3.3 | S3 delivery — Customer-owned S3 destination; presigned URL return |
 | 3.4 | Testing — Param-format tests (S3 keys, base64, inline, S3 folder); E2E for REST (multipart, API Gateway) |
-| 3.5 | Docs — `docs/api/` branch (REST endpoints); update `docs/getting-started.md` |
+| 3.5 | Docs — `docs/api/` branch (REST endpoints); `docs/api/auth.md` — how to add IAM or API key auth; update `docs/getting-started.md` |
 
 ---
 
