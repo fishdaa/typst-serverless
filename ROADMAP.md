@@ -1,4 +1,4 @@
-# Serverless Typst — Project Roadmap
+# Typst Serverless — Project Roadmap
 
 ## Overview
 
@@ -78,11 +78,12 @@ src/
 |------|-------------|
 | `docs/getting-started.md` | Entry point; branches to use-case-specific sections |
 | `docs/container/` | Docker / container use cases (volume, pipe, state) |
+| `docs/integrations/` | Language/framework guides (Node, Python, Go, PHP, Ruby). **Updated per phase** — each phase adds integration patterns for the new output (container → Lambda SDK → REST API). |
 | `docs/lambda/` | Lambda (SDK) use cases (sync, async, S3, DynamoDB) |
 | `docs/api/` | REST / API Gateway use cases (Phase 3); includes optional auth setup guide |
 | `docs/ecr/` | ECR / ECS / EKS use cases (optional) |
 
-Getting started flow: user selects use case (container, Lambda, REST API, ECR) → links to relevant branch section. Each branch covers setup, input formats, and output handling for that use case. Docs milestones per phase below.
+Getting started flow: user selects use case (container, Lambda, REST API, ECR) → links to relevant branch section. Each branch covers setup, input formats, and output handling for that use case. Integrations docs mirror available outputs and are expanded as each phase ships. Docs milestones per phase below.
 
 **Input parameters:**
 
@@ -160,7 +161,7 @@ Getting started flow: user selects use case (container, Lambda, REST API, ECR) �
 | 1.5 | Storage — Support both named volume (default) and bind mount (user-defined folder) |
 | 1.6 | Core + adapters — `adapters/container`, `adapters/lambda-layer` |
 | 1.7 | `README.md` — Build and usage instructions |
-| 1.8 | Docs — `docs/getting-started.md`; `docs/container/` branch (volume, pipe, state use cases) |
+| 1.8 | Docs — `docs/getting-started.md`; `docs/container/` branch (volume, pipe, state use cases); `docs/integrations/` with container (Docker) examples per language (Node, Python, Go, PHP, Ruby) |
 
 **Storage options:** Named volume (internal) or bind mount (user-defined folder). Both supported in all container configurtions.
 
@@ -226,7 +227,7 @@ Client (AWS SDK) → Lambda (Node.js + Layer) → DynamoDB (state)
 | 2.4 | DynamoDB — Table: `document_id` PK, `status`, `s3_key`, timestamps |
 | 2.5 | IAM — Lambda role for DynamoDB, S3, CloudWatch Logs |
 | 2.6 | ECR — (Optional) Push container image to ECR for ECS/EKS; Lambda uses Node + Layer, not container |
-| 2.7 | Docs — `docs/lambda/` branch (SDK invoke, multipart, S3, DynamoDB use cases) |
+| 2.7 | Docs — `docs/lambda/` branch (SDK invoke, multipart, S3, DynamoDB use cases); **update `docs/integrations/`** — add Lambda SDK invoke examples per language |
 | 2.8 | One-click deploy — Single command to deploy Lambda + DynamoDB + S3 (optionally API Gateway); documented in README and `docs/getting-started.md` |
 
 ---
@@ -253,7 +254,7 @@ Client (AWS SDK) → Lambda (Node.js + Layer) → DynamoDB (state)
 | 3.2 | Fonts/assets — Document and support custom fonts, image injection; asset type validation (Typst-supported only) |
 | 3.3 | API Gateway — Pulumi (in lambda adapter): REST or HTTP API; request validation; throttling; no auth by default |
 | 3.4 | S3 delivery — Customer-owned S3 destination; presigned URL return; S3 lifecycle rules for file expiry |
-| 3.5 | Docs — `docs/api/` branch (REST endpoints); `docs/api/auth.md` — how to add IAM or API key auth; update `docs/getting-started.md` |
+| 3.5 | Docs — `docs/api/` branch (REST endpoints); `docs/api/auth.md` — how to add IAM or API key auth; update `docs/getting-started.md`; **update `docs/integrations/`** — add REST API (HTTP POST) examples per language |
 
 ---
 
@@ -275,5 +276,5 @@ Client (AWS SDK) → Lambda (Node.js + Layer) → DynamoDB (state)
 | 4.2 | Output options — PDF variants, optional SVG/PNG |
 | 4.3 | Webhooks — Invoke user URL on completion |
 | 4.4 | Batch — Support multi-document compile flows |
-| 4.5 | Docs — `docs/ecr/` (optional); complete getting-started branching |
+| 4.5 | Docs — `docs/ecr/` (optional); complete getting-started branching; **update `docs/integrations/`** — add async/webhook and batch patterns per language as relevant |
 

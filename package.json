@@ -1,10 +1,10 @@
 {
-  "name": "serverless-typst",
+  "name": "typst-serverless",
   "version": "0.1.0",
   "description": "Containerized and serverless Typst compilation",
   "type": "module",
   "scripts": {
-    "test": "docker run --rm --entrypoint node -v \"$(pwd):/project\" -w /project serverless-typst --test \"test/core/*.test.js\"",
+    "test": "docker run --rm --entrypoint node -v \"$(pwd):/project\" -w /project typst-serverless --test \"test/core/*.test.js\"",
     "test:core": "npm run test",
     "test:integration": "node test/integration/container.test.js",
     "compile": "node src/adapters/container/cli.js"

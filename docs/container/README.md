@@ -25,7 +25,7 @@ docker run --rm -v $(pwd):/workspace \
   -e TYPST_WORKSPACE=/workspace \
   -e TYPST_MAIN=main.typ \
   -e TYPST_OUTPUT=output.pdf \
-  serverless-typst
+  typst-serverless
 ```
 
 ## Pipe Mode
@@ -37,7 +37,7 @@ docker run --rm -v $(pwd):/workspace \
   -e TYPST_WORKSPACE=/workspace \
   -e TYPST_MAIN=main.typ \
   -e TYPST_PIPE=true \
-  serverless-typst > output.pdf
+  typst-serverless > output.pdf
 ```
 
 ## State Mode
@@ -50,7 +50,7 @@ docker run --rm -v $(pwd):/workspace \
   -e TYPST_MAIN=main.typ \
   -e TYPST_OUTPUT=output.pdf \
   -e TYPST_STATE=true \
-  serverless-typst
+  typst-serverless
 ```
 
 State format:
@@ -74,7 +74,7 @@ docker run --rm -v $(pwd):/workspace \
   -e TYPST_MAIN=main.typ \
   -e TYPST_OUTPUT=output.pdf \
   -e TYPST_PIPE=true \
-  serverless-typst > copy.pdf
+  typst-serverless > copy.pdf
 # output.pdf in workspace AND copy.pdf from stdout
 ```
 
@@ -90,5 +90,5 @@ docker run --rm -v $(pwd)/docs:/workspace \
   -e TYPST_WORKSPACE=/workspace \
   -e TYPST_MAIN=src/report.typ \
   -e TYPST_OUTPUT=dist/report.pdf \
-  serverless-typst
+  typst-serverless
 ```

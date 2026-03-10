@@ -1,4 +1,4 @@
-# Serverless Typst
+# Typst Serverless
 
 Containerized and serverless Typst compilation. One core, multiple deployment outputs.
 
@@ -7,7 +7,7 @@ Containerized and serverless Typst compilation. One core, multiple deployment ou
 ### Build
 
 ```bash
-docker build -t serverless-typst .
+docker build -t typst-serverless .
 ```
 
 ### Run (volume mode)
@@ -19,7 +19,7 @@ docker run --rm -v $(pwd):/workspace \
   -e TYPST_WORKSPACE=/workspace \
   -e TYPST_MAIN=main.typ \
   -e TYPST_OUTPUT=output.pdf \
-  serverless-typst
+  typst-serverless
 ```
 
 Output PDF will be written to `./output.pdf`.
@@ -31,7 +31,7 @@ docker run --rm -v $(pwd):/workspace \
   -e TYPST_WORKSPACE=/workspace \
   -e TYPST_MAIN=main.typ \
   -e TYPST_PIPE=true \
-  serverless-typst > output.pdf
+  typst-serverless > output.pdf
 ```
 
 ### Run (with state tracking)
@@ -42,7 +42,7 @@ docker run --rm -v $(pwd):/workspace \
   -e TYPST_MAIN=main.typ \
   -e TYPST_OUTPUT=output.pdf \
   -e TYPST_STATE=true \
-  serverless-typst
+  typst-serverless
 ```
 
 State is stored in `/workspace/.typst-state/state.json`.
@@ -93,7 +93,7 @@ volumes:
 
 ```bash
 # Build the image first
-docker build -t serverless-typst .
+docker build -t typst-serverless .
 
 # Unit tests (run inside Docker; typst from image)
 npm test
@@ -106,3 +106,4 @@ npm run test:integration
 
 - [Getting Started](docs/getting-started.md)
 - [Container Use Cases](docs/container/README.md) — volume, pipe, state
+- [Integrations](docs/integrations/README.md) — Node.js (Express, Fastify), Python (Flask, FastAPI), Go, PHP, Ruby

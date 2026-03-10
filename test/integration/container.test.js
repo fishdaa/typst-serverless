@@ -10,7 +10,7 @@ import { readFileSync, existsSync, mkdtempSync, rmSync, writeFileSync } from "no
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 
-const IMAGE = "serverless-typst:test";
+const IMAGE = "typst-serverless:test";
 const FIXTURES = join(import.meta.dirname, "../fixtures");
 
 function docker(...args) {
