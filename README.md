@@ -74,14 +74,27 @@ volumes:
 | TYPST_PIPE     | false       | If `true`, stream PDF to stdout          |
 | TYPST_STATE    | false       | If `true`, track job state in volume     |
 
+## Lambda (Phase 2)
+
+One-click deploy to AWS (Lambda + DynamoDB + S3):
+
+```bash
+npm install
+npm run build:layer   # Downloads Typst binary for Lambda
+npm run build:lambda  # Packages handler + deps
+cd src/adapters/lambda-layer/pulumi && npm install && pulumi up
+```
+
+Invoke via AWS SDK — see [docs/lambda/](docs/lambda/README.md) for compile, status, retrieve, and S3 options.
+
 ## Project Structure
 
 ```
 ├── src/
-│   ├── core/              # Compile logic, state interface
+│   ├── core/              # Compile logic, state interface, validation
 │   └── adapters/
 │       ├── container/     # Docker entrypoint, volume handling
-│       └── lambda-layer/  # Lambda (Phase 2)
+│       └── lambda-layer/  # Lambda handler, Pulumi IaC
 ├── test/                  # Unit and integration tests
 ├── docs/                  # Getting started, container, lambda
 ├── Dockerfile
@@ -92,14 +105,15 @@ volumes:
 ## Tests
 
 ```bash
-# Build the image first
-docker build -t typst-serverless .
-
-# Unit tests (run inside Docker; typst from image)
+# Core unit tests (requires typst in PATH for compile tests)
 npm test
 
-# Container integration tests
+# Container integration tests (requires Docker)
+docker build -t typst-serverless:test .
 npm run test:integration
+
+# Lambda validation tests
+npm run test:lambda
 ```
 
 ## Documentation

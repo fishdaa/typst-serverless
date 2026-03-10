@@ -76,3 +76,82 @@ export function createFileState(baseDir) {
     },
   };
 }
+
+/**
+ * DynamoDB state store for Lambda (Phase 2).
+ * Table: document_id (PK), status, s3_key?, error?, createdAt, updatedAt
+ * @param {object} opts - { tableName, documentClient }
+ * @returns {StateStore}
+ */
+export function createDynamoDBState(opts = {}) {
+  const tableName = opts.tableName || process.env.TYPST_STATE_TABLE || "typst-documents";
+  const docClient = opts.documentClient;
+
+  if (!docClient) {
+    throw new Error("DynamoDB DocumentClient required for createDynamoDBState");
+  }
+
+  return {
+    async set(id, data) {
+      const now = Date.now();
+      await docClient.put({
+        TableName: tableName,
+        Item: {
+          document_id: id,
+          status: data.status ?? "pending",
+          ...(data.s3_key && { s3_key: data.s3_key }),
+          ...(data.error && { error: data.error }),
+          createdAt: data.createdAt ?? now,
+          updatedAt: now,
+        },
+      });
+    },
+    async get(id) {
+      const { Item } = await docClient.get({
+        TableName: tableName,
+        Key: { document_id: id },
+      });
+      if (!Item) return undefined;
+      return {
+        status: Item.status,
+        s3_key: Item.s3_key,
+        error: Item.error,
+        createdAt: Item.createdAt,
+        updatedAt: Item.updatedAt,
+      };
+    },
+    async update(id, updates) {
+      const now = Date.now();
+      const expr = [];
+      const names = {};
+      const values = { ":updated": now };
+
+      if (updates.status !== undefined) {
+        expr.push("#status = :status");
+        names["#status"] = "status";
+        values[":status"] = updates.status;
+      }
+      if (updates.s3_key !== undefined) {
+        expr.push("#s3_key = :s3_key");
+        names["#s3_key"] = "s3_key";
+        values[":s3_key"] = updates.s3_key;
+      }
+      if (updates.error !== undefined) {
+        expr.push("#error = :error");
+        names["#error"] = "error";
+        values[":error"] = updates.error;
+      }
+
+      expr.push("#updatedAt = :updated");
+      names["#updatedAt"] = "updatedAt";
+
+      await docClient.update({
+        TableName: tableName,
+        Key: { document_id: id },
+        UpdateExpression: "SET " + expr.join(", "),
+        ExpressionAttributeNames: names,
+        ExpressionAttributeValues: values,
+      });
+    },
+  };
+}

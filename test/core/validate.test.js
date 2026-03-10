@@ -1,0 +1,124 @@
+/**
+ * Validation unit tests.
+ * Tests: payload size, document_id, S3 key, event schema.
+ */
+import { describe, it } from "node:test";
+import assert from "node:assert";
+import {
+  validatePayloadSize,
+  validateDocumentId,
+  validateS3Key,
+  validateS3Ref,
+  validateCompileEvent,
+  validateStatusEvent,
+} from "../../src/core/validate.js";
+
+describe("core/validate", () => {
+  describe("validatePayloadSize", () => {
+    it("accepts small sync payload", () => {
+      const r = validatePayloadSize({ mainTyp: "aGk=" }, false);
+      assert.strictEqual(r.valid, true);
+    });
+
+    it("rejects oversized sync payload", () => {
+      const big = { mainTyp: "x".repeat(7 * 1024 * 1024) };
+      const r = validatePayloadSize(big, false);
+      assert.strictEqual(r.valid, false);
+      assert(r.error?.includes("6MB"));
+    });
+
+    it("rejects oversized async payload", () => {
+      const big = { mainTyp: "x".repeat(300 * 1024) };
+      const r = validatePayloadSize(big, true);
+      assert.strictEqual(r.valid, false);
+      assert(r.error?.includes("256KB"));
+    });
+  });
+
+  describe("validateDocumentId", () => {
+    it("accepts valid id", () => {
+      assert.strictEqual(validateDocumentId("doc-123").valid, true);
+      assert.strictEqual(validateDocumentId("abc_def-123").valid, true);
+    });
+
+    it("rejects empty or invalid id", () => {
+      assert.strictEqual(validateDocumentId("").valid, false);
+      assert.strictEqual(validateDocumentId("x".repeat(200)).valid, false);
+      assert.strictEqual(validateDocumentId("bad/key").valid, false);
+    });
+  });
+
+  describe("validateS3Key", () => {
+    it("accepts valid key", () => {
+      assert.strictEqual(validateS3Key("path/to/file.typ").valid, true);
+    });
+
+    it("rejects path traversal", () => {
+      assert.strictEqual(validateS3Key("../etc/passwd").valid, false);
+      assert.strictEqual(validateS3Key("a/../b").valid, false);
+    });
+
+    it("rejects leading slash", () => {
+      assert.strictEqual(validateS3Key("/absolute").valid, false);
+    });
+  });
+
+  describe("validateS3Ref", () => {
+    it("accepts valid ref", () => {
+      assert.strictEqual(
+        validateS3Ref({ bucket: "my-bucket", key: "path/main.typ" }).valid,
+        true
+      );
+    });
+
+    it("rejects missing bucket or key", () => {
+      assert.strictEqual(validateS3Ref({ key: "x" }).valid, false);
+      assert.strictEqual(validateS3Ref({ bucket: "b" }).valid, false);
+    });
+  });
+
+  describe("validateCompileEvent", () => {
+    it("accepts mainTyp base64", () => {
+      const r = validateCompileEvent({ mainTyp: "IyBoZWxsbw==" });
+      assert.strictEqual(r.valid, true);
+    });
+
+    it("accepts mainTypS3", () => {
+      const r = validateCompileEvent({
+        mainTypS3: { bucket: "b", key: "path/main.typ" },
+      });
+      assert.strictEqual(r.valid, true);
+    });
+
+    it("rejects missing main source", () => {
+      assert.strictEqual(validateCompileEvent({}).valid, false);
+      assert.strictEqual(validateCompileEvent({ action: "compile" }).valid, false);
+    });
+
+    it("rejects both mainTyp and mainTypS3", () => {
+      const r = validateCompileEvent({
+        mainTyp: "e30=",
+        mainTypS3: { bucket: "b", key: "x" },
+      });
+      assert.strictEqual(r.valid, false);
+    });
+
+    it("rejects invalid documentId", () => {
+      const r = validateCompileEvent({
+        mainTyp: "e30=",
+        documentId: "bad/id",
+      });
+      assert.strictEqual(r.valid, false);
+    });
+  });
+
+  describe("validateStatusEvent", () => {
+    it("accepts documentId", () => {
+      assert.strictEqual(validateStatusEvent({ documentId: "doc-1" }).valid, true);
+    });
+
+    it("rejects missing documentId", () => {
+      assert.strictEqual(validateStatusEvent({}).valid, false);
+    });
+  });
+});

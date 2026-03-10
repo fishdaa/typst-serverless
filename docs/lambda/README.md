@@ -1,0 +1,169 @@
+# Lambda (AWS SDK) — Phase 2
+
+Deploy Typst compilation as an AWS Lambda function. Clients invoke via AWS SDK. State tracking in DynamoDB; optional S3 storage for output PDFs.
+
+## Architecture
+
+```
+Client (AWS SDK) → Lambda (Node.js + Typst Layer) → DynamoDB (state)
+                                    ↓
+                                 S3 (optional output)
+```
+
+## Publish Layer to Multiple Regions (CI)
+
+A GitHub Action publishes the Typst layer to multiple regions on release or manual trigger:
+
+1. Add **AWS credentials**:
+   - **OIDC (recommended):** Set `AWS_ROLE_ARN` in Settings → Secrets and variables → Actions (Variables)
+   - **Static:** Set `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` in Secrets
+
+2. Run the workflow:
+   - **Manual:** Actions → Publish Lambda Layer → Run workflow
+   - **On release:** Create a release to trigger automatically
+
+Publishes to: `us-east-1`, `us-east-2`, `us-west-1`, `us-west-2`, `ap-south-1`, `ap-northeast-1`, `ap-northeast-2`, `ap-southeast-1`, `ap-southeast-2`, `eu-central-1`, `eu-west-1`, `eu-west-2`, `eu-north-1`.
+
+## Deploy
+
+### Prerequisites
+
+- Node.js 20+
+- [Pulumi CLI](https://www.pulumi.com/docs/install/)
+- AWS CLI configured with credentials
+
+### One-click deploy
+
+```bash
+# 1. Install dependencies
+npm install
+
+# 2. Build Typst Lambda layer (downloads typst binary)
+npm run build:layer
+
+# 3. Build Lambda package
+npm run build:lambda
+
+# 4. Deploy
+cd src/adapters/lambda-layer/pulumi
+npm install
+pulumi up
+```
+
+Or as a single command:
+
+```bash
+npm install && npm run build:layer && npm run build:lambda && \
+  cd src/adapters/lambda-layer/pulumi && npm install && pulumi up
+```
+
+### Configuration
+
+- `s3RetentionDays` — S3 lifecycle rule for output PDFs (default: 7)
+
+```bash
+pulumi config set s3RetentionDays 14
+```
+
+## Usage
+
+### Compile (inline source, return PDF)
+
+```javascript
+import { LambdaClient, InvokeCommand } from "@aws-sdk/client-lambda";
+
+const lambda = new LambdaClient({});
+const { Payload } = await lambda.send(new InvokeCommand({
+  FunctionName: "typst-compile-xxx",
+  Payload: JSON.stringify({
+    action: "compile",
+    mainTyp: Buffer.from("#set page(width: 100pt)\nHello!").toString("base64"),
+  }),
+}));
+
+const result = JSON.parse(new TextDecoder().decode(Payload));
+// result.pdf = base64-encoded PDF
+// result.documentId = for status/retrieve
+```
+
+### Compile (store to S3, get presigned URL)
+
+```javascript
+const { Payload } = await lambda.send(new InvokeCommand({
+  FunctionName: "typst-compile-xxx",
+  Payload: JSON.stringify({
+    action: "compile",
+    mainTyp: Buffer.from("#hello\n").toString("base64"),
+    storeToS3: true,
+  }),
+}));
+
+const result = JSON.parse(new TextDecoder().decode(Payload));
+// result.s3Url = presigned download URL
+// result.documentId = for status/retrieve
+```
+
+### Compile (source from S3)
+
+Upload your `main.typ` to the input bucket first, then:
+
+```javascript
+const { Payload } = await lambda.send(new InvokeCommand({
+  FunctionName: "typst-compile-xxx",
+  Payload: JSON.stringify({
+    action: "compile",
+    mainTypS3: {
+      bucket: "typst-input-xxx",  // from pulumi outputs
+      key: "my-doc/main.typ",
+    },
+    storeToS3: true,
+  }),
+}));
+```
+
+### Status
+
+```javascript
+const { Payload } = await lambda.send(new InvokeCommand({
+  FunctionName: "typst-compile-xxx",
+  Payload: JSON.stringify({
+    action: "status",
+    documentId: "doc-123",
+  }),
+}));
+
+const result = JSON.parse(new TextDecoder().decode(Payload));
+// result.status = "pending" | "compiling" | "completed" | "failed"
+```
+
+### Retrieve (when stored in S3)
+
+```javascript
+const { Payload } = await lambda.send(new InvokeCommand({
+  FunctionName: "typst-compile-xxx",
+  Payload: JSON.stringify({
+    action: "retrieve",
+    documentId: "doc-123",
+  }),
+}));
+
+const result = JSON.parse(new TextDecoder().decode(Payload));
+// result.s3Url = presigned URL to download PDF
+```
+
+## Event schema
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| action | No | `compile` (default), `status`, `retrieve` |
+| mainTyp | Yes (compile) | Base64-encoded .typ source |
+| mainTypS3 | Yes (compile) | `{ bucket, key }` — must use input bucket |
+| storeToS3 | No | If true, store PDF in S3; return presigned URL |
+| documentId | No (compile) | Custom ID; generated if omitted |
+| documentId | Yes (status/retrieve) | Document to query |
+
+## Limits
+
+- **Payload size:** 6MB sync, 256KB async
+- **S3 key:** No path traversal (`..`), ASCII only
+- **document_id:** 1–128 chars, alphanumeric, hyphens, underscores

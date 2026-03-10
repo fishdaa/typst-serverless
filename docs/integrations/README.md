@@ -10,10 +10,22 @@ Use Typst Serverless with common languages and web frameworks to generate PDFs o
 | **PHP** | [plain, Laravel, Slim](php.md) |
 | **Ruby** | [Rails, Sinatra](ruby.md) |
 
+## Output modes
+
+| Mode | Description |
+|------|-------------|
+| **Container (Docker)** | Run `typst-serverless` image; volume or pipe output. See per-framework guides. |
+| **Lambda (AWS SDK)** | Invoke deployed Lambda via SDK; multipart or S3. See [docs/lambda/](../lambda/README.md). |
+
 ## Prerequisites
 
+**Container:**
 - Docker with the `typst-serverless` image built:
   ```bash
   docker build -t typst-serverless .
   ```
 - A workspace directory containing your `.typ` file(s)
+
+**Lambda:**
+- Deployed stack (see [docs/lambda/](../lambda/README.md))
+- AWS SDK and credentials

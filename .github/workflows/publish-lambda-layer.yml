@@ -1,0 +1,84 @@
+name: Publish Lambda Layer
+
+on:
+  workflow_dispatch:
+  release:
+    types: [published]
+
+env:
+  LAYER_NAME: typst-binary
+  COMPATIBLE_RUNTIMES: nodejs20.x
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    outputs:
+      layer_zip: ${{ steps.build.outputs.path }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-cache: npm
+
+      - name: Build layer
+        id: build
+        run: |
+          npm ci
+          npm run build:layer
+          echo "path=src/adapters/lambda-layer/typst-layer.zip" >> $GITHUB_OUTPUT
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: typst-layer
+          path: src/adapters/lambda-layer/typst-layer.zip
+
+  publish:
+    needs: build
+    strategy:
+      fail-fast: false
+      matrix:
+        region:
+          - us-east-1
+          - us-east-2
+          - us-west-1
+          - us-west-2
+          - ap-south-1
+          - ap-northeast-1
+          - ap-northeast-2
+          - ap-southeast-1
+          - ap-southeast-2
+          - eu-central-1
+          - eu-west-1
+          - eu-west-2
+          - eu-north-1
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - name: Download artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: typst-layer
+
+      - name: Configure AWS
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          # OIDC: set AWS_ROLE_ARN in repo variables (Settings → Secrets and variables → Actions)
+          # Static: set AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY in repo secrets
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ matrix.region }}
+
+      - name: Publish layer
+        run: |
+          aws lambda publish-layer-version \
+            --layer-name ${{ env.LAYER_NAME }} \
+            --description "Typst binary for Lambda (Node.js)" \
+            --zip-file fileb://src/adapters/lambda-layer/typst-layer.zip \
+            --compatible-runtimes ${{ env.COMPATIBLE_RUNTIMES }} \
+            --region ${{ matrix.region }}

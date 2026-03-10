@@ -4,3 +4,7 @@ node_modules
 .DS_Store
 *.log
 .typst-state/
+dist-lambda/
+typst-layer.zip
+src/adapters/lambda-layer/typst-layer.zip
+src/adapters/lambda-layer/layer/

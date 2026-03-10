@@ -5,8 +5,8 @@ Typst Serverless provides multiple ways to compile Typst documents to PDF. Choos
 | Use Case | Description |
 |----------|-------------|
 | **Container (Docker)** | Run as a Docker container; volume or pipe output. [→ docs/container/](container/README.md) |
+| **Lambda** | Serverless on AWS; invoke via SDK. [→ docs/lambda/](lambda/README.md) |
 | **Integrations** | Node.js, Python, Go, Ruby. [→ docs/integrations/](integrations/README.md) |
-| **Lambda** | Serverless on AWS (Phase 2). |
 | **REST API** | HTTP endpoints via API Gateway (Phase 3). |
 | **ECR / ECS / EKS** | Deploy container to AWS (optional). |
 
@@ -35,3 +35,28 @@ Typst Serverless provides multiple ways to compile Typst documents to PDF. Choos
    ```
 
 See [docs/container/](container/README.md) for volume, pipe, and state tracking use cases.
+
+## Lambda (Phase 2)
+
+1. **Build** the Typst layer and Lambda package:
+   ```bash
+   npm run build:layer
+   npm run build:lambda
+   ```
+
+2. **Deploy**:
+   ```bash
+   cd src/adapters/lambda-layer/pulumi && npm install && pulumi up
+   ```
+
+3. **Invoke** via AWS SDK (Node.js example):
+   ```javascript
+   const { LambdaClient, InvokeCommand } = require("@aws-sdk/client-lambda");
+   const lambda = new LambdaClient({});
+   const { Payload } = await lambda.send(new InvokeCommand({
+     FunctionName: "typst-compile-xxx",
+     Payload: JSON.stringify({ action: "compile", mainTyp: Buffer.from("#hello\n").toString("base64") }),
+   }));
+   ```
+
+See [docs/lambda/](lambda/README.md) for compile, status, retrieve, and S3 options.
