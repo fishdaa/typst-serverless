@@ -2,6 +2,23 @@
 
 Generate PDFs from Ruby (Rails, Sinatra) by running `typst-serverless` via `Open3` or `system`.
 
+## Lambda (AWS SDK)
+
+If you've deployed the Lambda stack ([docs/lambda/](../lambda/README.md)):
+
+```ruby
+require "aws-sdk-lambda"
+
+client = Aws::Lambda::Client.new(region: "us-east-1")
+payload = {
+  action: "compile",
+  mainTyp: Base64.strict_encode64("#set page(width: 100pt)\nHello!"),
+}
+resp = client.invoke(function_name: "typst-compile-xxx", payload: payload.to_json)
+result = JSON.parse(resp.payload.string)
+# result["pdf"] = base64 PDF, or result["s3Url"] if storeToS3
+```
+
 ## Sinatra
 
 ```bash

@@ -2,6 +2,28 @@
 
 Generate PDFs from PHP (plain, Laravel, Slim) by running `typst-serverless` via `proc_open` or `shell_exec`.
 
+## Lambda (AWS SDK)
+
+If you've deployed the Lambda stack ([docs/lambda/](../lambda/README.md)):
+
+```php
+<?php
+require 'vendor/autoload.php';
+use Aws\Lambda\LambdaClient;
+
+$client = new LambdaClient(['region' => 'us-east-1']);
+$payload = [
+    'action' => 'compile',
+    'mainTyp' => base64_encode("#set page(width: 100pt)\nHello!"),
+];
+$result = $client->invoke([
+    'FunctionName' => 'typst-compile-xxx',
+    'Payload' => json_encode($payload),
+]);
+$data = json_decode((string) $result->get('Payload'));
+// $data->pdf = base64 PDF, or $data->s3Url if storeToS3
+```
+
 ## Plain PHP
 
 ```php

@@ -55,3 +55,22 @@ fastify.get("/pdf", async (request, reply) => {
 
 await fastify.listen({ port: 3000 });
 ```
+
+## Lambda (AWS SDK)
+
+If you've deployed the Lambda stack ([docs/lambda/](../lambda/README.md)):
+
+```javascript
+import { LambdaClient, InvokeCommand } from "@aws-sdk/client-lambda";
+
+const lambda = new LambdaClient({});
+const { Payload } = await lambda.send(new InvokeCommand({
+  FunctionName: process.env.TYPST_LAMBDA_FUNCTION,
+  Payload: JSON.stringify({
+    action: "compile",
+    mainTyp: Buffer.from("#set page(width: 100pt)\nHello!").toString("base64"),
+  }),
+}));
+const result = JSON.parse(new TextDecoder().decode(Payload));
+// result.pdf = base64 PDF, or result.s3Url if storeToS3
+```

@@ -43,6 +43,24 @@ describe("lambda integration", () => {
       const res = await handler({ action: "retrieve" });
       assert.strictEqual(res.statusCode, 400);
     });
+
+    it("rejects mainTypS3 with path traversal in key", async () => {
+      const res = await handler({
+        action: "compile",
+        mainTypS3: { bucket: "my-bucket", key: "../etc/main.typ" },
+      });
+      assert.strictEqual(res.statusCode, 400);
+      const body = JSON.parse(res.body);
+      assert(body.error?.includes("S3") || body.error?.includes("path"));
+    });
+
+    it("rejects invalid documentId format on status", async () => {
+      const res = await handler({
+        action: "status",
+        documentId: "bad/id",
+      });
+      assert.strictEqual(res.statusCode, 400);
+    });
   });
 
   describe("compile (requires typst + AWS)", () => {

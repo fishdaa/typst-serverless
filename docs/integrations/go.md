@@ -68,6 +68,44 @@ func main() {
 }
 ```
 
+## Lambda (AWS SDK)
+
+If you've deployed the Lambda stack ([docs/lambda/](../lambda/README.md)):
+
+```go
+import (
+	"context"
+	"encoding/base64"
+	"encoding/json"
+
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/lambda"
+)
+
+func compileViaLambda(ctx context.Context, typSource string) ([]byte, error) {
+	cfg, _ := config.LoadDefaultConfig(ctx)
+	client := lambda.NewFromConfig(cfg)
+	payload := map[string]string{
+		"action":  "compile",
+		"mainTyp": base64.StdEncoding.EncodeToString([]byte(typSource)),
+	}
+	raw, _ := json.Marshal(payload)
+	out, err := client.Invoke(ctx, &lambda.InvokeInput{
+		FunctionName: aws.String("typst-compile-xxx"),
+		Payload:      raw,
+	})
+	if err != nil {
+		return nil, err
+	}
+	var result struct {
+		PDF string `json:"pdf"`
+	}
+	json.Unmarshal(out.Payload, &result)
+	return base64.StdEncoding.DecodeString(result.PDF)
+}
+```
+
 ## Chi
 
 ```go

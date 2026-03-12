@@ -54,6 +54,28 @@ def pdf():
         shutil.rmtree(tmp, ignore_errors=True)
 ```
 
+## Lambda (AWS SDK)
+
+If you've deployed the Lambda stack ([docs/lambda/](../lambda/README.md)):
+
+```python
+import boto3
+import base64
+import json
+
+lambda_client = boto3.client("lambda")
+payload = {
+    "action": "compile",
+    "mainTyp": base64.b64encode(b"#set page(width: 100pt)\nHello!").decode(),
+}
+resp = lambda_client.invoke(
+    FunctionName="typst-compile-xxx",
+    Payload=json.dumps(payload),
+)
+result = json.loads(resp["Payload"].read())
+# result["pdf"] = base64 PDF, or result["s3Url"] if storeToS3
+```
+
 ## Run
 
 ```bash

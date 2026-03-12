@@ -13,6 +13,68 @@
 
 ---
 
+## Status (Completed)
+
+| Phase | Milestone | Status |
+|-------|-----------|--------|
+| **Phase 1** | 1.1 Testing — Core unit tests (validate, state), container integration | ✅ |
+| | 1.2 Dockerfile — Base on Typst image | ✅ |
+| | 1.3 docker-compose.yml — Profiles (volume, volume-state, pipe, volume-pipe) | ✅ |
+| | 1.4 src/core + adapters — Core (compile, state, validate); container (CLI); lambda-layer | ✅ |
+| | 1.5 Storage — Named volume, bind mount | ✅ |
+| | 1.6 adapters/container, adapters/lambda-layer | ✅ |
+| | 1.7 README.md — Build and usage instructions | ✅ |
+| | 1.8 Docs — getting-started, container, integrations (Node, Python, Go, PHP, Ruby) | ✅ |
+| **Phase 2** | 2.1 Lambda integration tests — validation (schema, size, S3 keys) | ✅ |
+| | 2.2 Pulumi — Lambda, DynamoDB, S3, lifecycle rules | ✅ |
+| | 2.3 Lambda handler — compile, status, retrieve; multipart; optional S3 | ✅ |
+| | 2.4 DynamoDB table — document_id PK, status, s3_key, timestamps | ✅ |
+| | 2.5 IAM role — DynamoDB, S3, CloudWatch Logs | ✅ |
+| | 2.7 Docs — lambda branch, integrations with Lambda examples | ✅ |
+| | 2.8 One-click deploy — `npm run build:lambda` + `pulumi up` | ✅ |
+| | 2.9 LocalStack verification — E2E Lambda tests against LocalStack (optional) | Pending |
+| | 2.10 Multi-region layer publish — CI publishes Typst layer to multiple AWS regions | ✅ |
+| **Tooling** | TypeScript, Vitest | Pending |
+
+Phase 3 and Phase 4 are not started. ECR (2.6) is deferred.
+
+### Proof (tests & example code)
+
+| Milestone | Proof |
+|-----------|-------|
+| **1.1** | Tests: `test/core/validate.test.js`, `test/core/state.test.js`, `test/core/compile.test.js`, `test/integration/container.test.js`. Fixtures: `test/fixtures/*.typ`. Run: `npm run test` (core), `npm run test:integration` (container). |
+| **1.2** | `Dockerfile` — `FROM ghcr.io/typst/typst:0.14.2`. Run: `docker build -t typst-serverless .`. |
+| **1.3** | `docker-compose.yml` — profiles `volume`, `volume-state`, `pipe`, `volume-pipe`. Run: `docker compose --profile volume run typst`. |
+| **1.4** | Source: `src/core/compile.js`, `src/core/state.js`, `src/core/validate.js`; `src/adapters/container/cli.js`; `src/adapters/lambda-layer/handler.js`, `resolve-input.js`. |
+| **1.5** | `test/integration/container.test.js` — volume mode uses bind mount (`-v`); `docker-compose.yml` defines `typst-workspace` volume. |
+| **1.6** | `src/adapters/container/` (cli.js, entrypoint.sh, pulumi/); `src/adapters/lambda-layer/` (handler.js, resolve-input.js, pulumi/). |
+| **1.7** | `README.md` — Quick Start, build/run commands, env vars, Docker Compose. |
+| **1.8** | `docs/getting-started.md`; `docs/container/README.md`; `docs/integrations/` (node-express.md, node-fastify.md, python-flask.md, python-fastapi.md, go.md, php.md, ruby.md). |
+| **2.1** | `test/integration/lambda.test.js` — validates payload size, event schema, S3 key path traversal, documentId. Run: `npm run test:lambda`. |
+| **2.2** | `src/adapters/lambda-layer/pulumi/index.ts` — Lambda, DynamoDB table, S3 buckets, lifecycle rules. |
+| **2.3** | `src/adapters/lambda-layer/handler.js` — actions: compile, status, retrieve; multipart response; S3 storage via `storeToS3`. |
+| **2.4** | Pulumi `aws.dynamodb.Table` hashKey `document_id`; handler uses `createDynamoDBState` with `status`, `s3_key`, timestamps. |
+| **2.5** | Pulumi: `aws.iam.Role`, `RolePolicyAttachment` (basic), `RolePolicy` (DynamoDB, S3 Get/Put). |
+| **2.7** | `docs/lambda/README.md` — deploy, invoke, S3; `docs/integrations/*.md` — Lambda SDK examples (e.g. `node-fastify.md` "Lambda (AWS SDK)" section). |
+| **2.8** | `package.json`: `build:lambda`, `deploy:lambda`; `docs/lambda/README.md` "One-click deploy" section with `npm run build:lambda` + `pulumi up`. |
+| **2.10** | `.github/workflows/publish-lambda-layer.yml` — publishes layer to multiple regions; `docs/lambda/README.md` "Publish Layer to Multiple Regions (CI)" section. |
+
+---
+
+## Tooling (ASAP)
+
+**Goal:** Migrate to TypeScript and Vitest for better DX, type safety, and test ergonomics.
+
+| Item | Description |
+|------|--------------|
+| **TypeScript** | Add `tsconfig.json`; migrate `src/` and `test/` from `.js` to `.ts`; use `tsc` for build; update `build-lambda-package.js` to copy compiled output |
+| **Vitest** | Replace Node `node:test` runner with Vitest; migrate `assert` → `expect()`; add `vitest.config.ts`; enable watch mode, coverage (optional) |
+| **Build** | Keep current copy-based flow; `tsc` emits to `dist/` or `dist-lambda/`. Optionally consider Rollup later for bundling/tree-shaking if beneficial |
+
+**Order:** TypeScript first (tsconfig + migrate), then Vitest (config + migrate tests). Scripts and Lambda handler must point at compiled output.
+
+---
+
 ## Core: Multi-Output Architecture
 
 **Goal:** One core, multiple deployment outputs. Core logic is shared; thin adapters handle runtime differences.
@@ -31,9 +93,9 @@
 | Container + volume + state | Named or bind | Local file in volume | Write to volume | Optional job/state tracking in volume |
 | Container + pipe | None | None | Stdout | Pipe PDF to stdout (e.g. `docker run ... > out.pdf`) |
 | Container + volume + pipe | Named or bind | None | Volume + stdout | Write to volume and stream to stdout |
-| Container + volume + state + pipe | Named or bind | Local file | Volume + stdout | Full configurtion |
+| Container + volume + state + pipe | Named or bind | Local file | Volume + stdout | Full configuration |
 
-Storage: named volume (internal) or bind mount (user-defined folder). Pulumi/docker-compose profiles per configurtion.
+Storage: named volume (internal) or bind mount (user-defined folder). Pulumi/docker-compose profiles per configuration.
 
 **AWS Serverless deployment options:**  
 Lambda uses **Node.js runtime**; Typst binary in Layer; zip deployment (no container image).
@@ -51,7 +113,7 @@ Lambda uses **Node.js runtime**; Typst binary in Layer; zip deployment (no conta
 
 Pulumi in `adapters/lambda-layer/pulumi/` supports multiple stacks (lambda-only, lambda-dynamodb, lambda-api, etc.).
 
-Pulumi/docker-compose in `adapters/container/` supports profiles (e.g. `volume-only`, `volume-state`, `pipe`, `volume-pipe`) for each container configurtion.
+Pulumi/docker-compose in `adapters/container/` supports profiles (e.g. `volume-only`, `volume-state`, `pipe`, `volume-pipe`) for each container configuration.
 
 **Structure:**
 ```
@@ -61,12 +123,12 @@ src/
     ├── container/      # Docker entrypoint, volume handling
     │   └── pulumi/     # Pulumi for container deployment
     ├── lambda-layer/   # Lambda Node.js runtime + Typst Layer (zip)
-    │   └── pulumi/     # Pulumi: Lambda, Layer, DynamoDB, S3, same configurtions
+    │   └── pulumi/     # Pulumi: Lambda, Layer, DynamoDB, S3, same configurations
     └── ecr/            # (Optional) Pulumi for ECR + ECS/EKS; container image for ECS/EKS
 ```
 
 - **core/** — Typst compile logic, abstract state interface (in-memory for local, DynamoDB for AWS).
-- **adapters/container** — CLI/entrypoint; configurable storage, state, output; Pulumi/docker-compose profiles per configurtion.
+- **adapters/container** — CLI/entrypoint; configurable storage, state, output; Pulumi/docker-compose profiles per configuration.
 - **adapters/lambda-layer** — Lambda **Node.js runtime**; Typst binary in Layer; handler invokes core; Pulumi deploys Lambda, Layer, DynamoDB, S3.
 - **adapters/ecr** — Pulumi for ECR; container image for ECS/EKS (not Lambda).
 
@@ -123,7 +185,7 @@ Getting started flow: user selects use case (container, Lambda, REST API, ECR) �
 **Principle:** Write tests first. Define test specs, fixtures, and integration cases at the start of each phase; implement features to satisfy them.
 
 **Core (`src/core`):**
-- Unit tests — compile logic, input parsing, state interface (Jest, Vitest, or Node test runner)
+- Unit tests — compile logic, input parsing, state interface (Vitest)
 - Typst fixtures — minimal `.typ` inputs; assert compile success or PDF output
 
 **Adapters:**
@@ -140,7 +202,7 @@ Getting started flow: user selects use case (container, Lambda, REST API, ECR) �
 | Phase | Testing scope |
 |-------|---------------|
 | 1 | Core unit tests; container integration tests |
-| 2 | Lambda integration tests (SAM Local or LocalStack); event validation (schema, size, S3 keys) |
+| 2 | Lambda integration tests — validation (schema, size, S3 keys); **LocalStack verification** (E2E against DynamoDB, S3, Lambda without real AWS) |
 | 3 | Param-format tests; request validation (size, schema, path); E2E for REST (API Gateway) |
 | 4 | E2E for webhooks and batch |
 
@@ -156,14 +218,14 @@ Getting started flow: user selects use case (container, Lambda, REST API, ECR) �
 |-----------|--------------|
 | 1.1 | Testing — Core unit test spec and Typst fixtures; container integration test cases (write first) |
 | 1.2 | `Dockerfile` — Base on Typst image, copy fonts/templates; Lambda uses separate Node + Layer |
-| 1.3 | `docker-compose.yml` — Profiles for container configurtions: volume, state, pipe, volume+pipe |
+| 1.3 | `docker-compose.yml` — Profiles for container configurations: volume, state, pipe, volume+pipe |
 | 1.4 | `src/core` + adapters — Core; container (CLI); lambda-layer (Node.js + Typst Layer) |
 | 1.5 | Storage — Support both named volume (default) and bind mount (user-defined folder) |
 | 1.6 | Core + adapters — `adapters/container`, `adapters/lambda-layer` |
 | 1.7 | `README.md` — Build and usage instructions |
 | 1.8 | Docs — `docs/getting-started.md`; `docs/container/` branch (volume, pipe, state use cases); `docs/integrations/` with container (Docker) examples per language (Node, Python, Go, PHP, Ruby) |
 
-**Storage options:** Named volume (internal) or bind mount (user-defined folder). Both supported in all container configurtions.
+**Storage options:** Named volume (internal) or bind mount (user-defined folder). Both supported in all container configurations.
 
 **Project layout:**
 ```
@@ -218,6 +280,8 @@ Client (AWS SDK) → Lambda (Node.js + Layer) → DynamoDB (state)
 | File expiry | S3 lifecycle rules for output bucket; configurable retention for PDFs and temp objects when S3 storage is used |
 | Lambda validations | Event schema validation; payload size (6MB sync, 256KB async); S3 key path validation (no traversal); document_id format on status/retrieve |
 | One-click deploy | Single command (e.g. `npx pulumi up` or deploy script) deploys full AWS stack; minimal config; outputs endpoints/URLs |
+| Multi-region layer | CI publishes Typst Lambda layer to multiple AWS regions (us-east-1, us-west-2, eu-west-1, etc.) on release or manual trigger |
+| LocalStack verification | E2E Lambda tests run against LocalStack for full compile/status/retrieve flow without real AWS |
 
 | Milestone | Tasks |
 |-----------|-------|
@@ -226,9 +290,11 @@ Client (AWS SDK) → Lambda (Node.js + Layer) → DynamoDB (state)
 | 2.3 | Lambda — Node.js handler: parse event; validate schema, size, S3 keys; typst compile (via Layer) → default multipart response; optional S3 storage |
 | 2.4 | DynamoDB — Table: `document_id` PK, `status`, `s3_key`, timestamps |
 | 2.5 | IAM — Lambda role for DynamoDB, S3, CloudWatch Logs |
-| 2.6 | ECR — (Optional) Push container image to ECR for ECS/EKS; Lambda uses Node + Layer, not container |
+| 2.6 | ECR — (Deferred) Push container image to ECR for ECS/EKS; Lambda uses Node + Layer, not container; out of Phase 2 scope |
 | 2.7 | Docs — `docs/lambda/` branch (SDK invoke, multipart, S3, DynamoDB use cases); **update `docs/integrations/`** — add Lambda SDK invoke examples per language |
-| 2.8 | One-click deploy — Single command to deploy Lambda + DynamoDB + S3 (optionally API Gateway); documented in README and `docs/getting-started.md` |
+| 2.8 | One-click deploy — Single command to deploy Lambda + DynamoDB + S3; documented in README and `docs/getting-started.md` |
+| 2.9 | LocalStack verification — E2E Lambda tests against LocalStack; full compile/status/retrieve flow with DynamoDB, S3, Lambda; runnable in CI without real AWS |
+| 2.10 | Multi-region layer publish — CI (GitHub Action) publishes Typst layer to multiple AWS regions on release or manual trigger; documented in `docs/lambda/` |
 
 ---
 
