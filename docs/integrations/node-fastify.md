@@ -74,3 +74,21 @@ const { Payload } = await lambda.send(new InvokeCommand({
 const result = JSON.parse(new TextDecoder().decode(Payload));
 // result.pdf = base64 PDF, or result.s3Url if storeToS3
 ```
+
+## REST API (HTTP POST)
+
+If API Gateway is enabled ([docs/api/](../api/README.md)):
+
+```javascript
+const apiUrl = process.env.TYPST_API_URL;
+const res = await fetch(`${apiUrl}/compile`, {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({
+    mainTyp: Buffer.from("#set page(width: 100pt)\nHello!").toString("base64"),
+    storeToS3: true,
+  }),
+});
+const result = await res.json();
+// result.s3Url or result.pdf
+```

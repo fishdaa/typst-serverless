@@ -61,6 +61,26 @@ describe("lambda integration", () => {
       });
       assert.strictEqual(res.statusCode, 400);
     });
+
+    it("rejects invalid font extension", async () => {
+      const res = await handler({
+        action: "compile",
+        mainTyp: FIXTURE_B64,
+        fonts: [{ name: "x.woff", base64: "dGVzdA==" }],
+      });
+      assert.strictEqual(res.statusCode, 400);
+      const body = JSON.parse(res.body);
+      assert(body.error?.includes("font") || body.error?.includes("extension"));
+    });
+
+    it("rejects invalid asset extension", async () => {
+      const res = await handler({
+        action: "compile",
+        mainTyp: FIXTURE_B64,
+        assets: [{ name: "x.bmp", base64: "dGVzdA==" }],
+      });
+      assert.strictEqual(res.statusCode, 400);
+    });
   });
 
   describe("compile (requires typst + AWS)", () => {

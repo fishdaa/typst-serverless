@@ -10,6 +10,7 @@ import {
   validateStatusEvent,
   validateS3Key,
 } from "../../core/validate.js";
+import { validateAssets } from "../../core/assets.js";
 import { resolveMainTyp } from "./resolve-input.js";
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocumentClient } from "@aws-sdk/lib-dynamodb";
@@ -61,9 +62,21 @@ async function handleCompile(event) {
   if (!validation.valid) {
     return lambdaResponse(400, { error: validation.error });
   }
+  if (event.fonts?.length) {
+    const fontsCheck = validateAssets(event.fonts, "font");
+    if (!fontsCheck.valid) return lambdaResponse(400, { error: fontsCheck.error });
+  }
+  if (event.assets?.length) {
+    const assetsCheck = validateAssets(event.assets, "image");
+    if (!assetsCheck.valid) return lambdaResponse(400, { error: assetsCheck.error });
+  }
+  if (event.outputS3 && (!event.outputS3.bucket || typeof event.outputS3.bucket !== "string")) {
+    return lambdaResponse(400, { error: "outputS3.bucket is required for customer S3" });
+  }
 
-  const documentId = event.documentId || randomUUID();
-  const storeToS3 = !!event.storeToS3 && !!OUTPUT_BUCKET;
+    const documentId = event.documentId || randomUUID();
+  const outputS3 = event.outputS3 && typeof event.outputS3.bucket === "string" ? event.outputS3 : null;
+  const storeToS3 = !!(event.storeToS3 && (OUTPUT_BUCKET || outputS3?.bucket));
   const state = createDynamoDBState({ tableName: STATE_TABLE, documentClient: dynamo });
 
   let workDir;
@@ -83,14 +96,16 @@ async function handleCompile(event) {
     if (storeToS3) {
       const fs = await import("node:fs/promises");
       const pdfBuffer = await fs.readFile(outputPath);
-      const s3Key = `outputs/${documentId}.pdf`;
+      const bucket = outputS3?.bucket || OUTPUT_BUCKET;
+      const keyPrefix = (outputS3?.keyPrefix || "outputs/").replace(/\/?$/, "/");
+      const s3Key = `${keyPrefix}${documentId}.pdf`;
       const keyCheck = validateS3Key(s3Key);
       if (!keyCheck.valid) {
         throw new Error(keyCheck.error);
       }
       await s3.send(
         new PutObjectCommand({
-          Bucket: OUTPUT_BUCKET,
+          Bucket: bucket,
           Key: s3Key,
           Body: pdfBuffer,
           ContentType: "application/pdf",
@@ -98,12 +113,13 @@ async function handleCompile(event) {
       );
       const url = await getSignedUrl(
         s3,
-        new GetObjectCommand({ Bucket: OUTPUT_BUCKET, Key: s3Key }),
+        new GetObjectCommand({ Bucket: bucket, Key: s3Key }),
         { expiresIn: PRESIGNED_EXPIRY }
       );
       await state.update(documentId, {
         status: "completed",
         s3_key: s3Key,
+        s3_bucket: bucket,
       });
       return lambdaResponse(200, {
         documentId,
@@ -181,9 +197,13 @@ async function handleRetrieve(event) {
     return lambdaResponse(409, { error: `Document status: ${doc.status}`, status: doc.status });
   }
   if (doc.s3_key) {
+    const bucket = doc.s3_bucket || OUTPUT_BUCKET;
+    if (!bucket) {
+      return lambdaResponse(500, { error: "Output bucket not configured" });
+    }
     const url = await getSignedUrl(
       s3,
-      new GetObjectCommand({ Bucket: OUTPUT_BUCKET, Key: doc.s3_key }),
+      new GetObjectCommand({ Bucket: bucket, Key: doc.s3_key }),
       { expiresIn: PRESIGNED_EXPIRY }
     );
     return lambdaResponse(200, { s3Url: url });

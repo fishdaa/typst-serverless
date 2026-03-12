@@ -18,11 +18,14 @@ async function main() {
   // Copy handler and core
   await mkdir(join(outDir, "adapters/lambda-layer"), { recursive: true });
   await mkdir(join(outDir, "core"), { recursive: true });
+  await cp(join(root, "src/adapters/lambda-layer/index.js"), join(outDir, "adapters/lambda-layer/index.js"));
   await cp(join(root, "src/adapters/lambda-layer/handler.js"), join(outDir, "adapters/lambda-layer/handler.js"));
+  await cp(join(root, "src/adapters/lambda-layer/api-handler.js"), join(outDir, "adapters/lambda-layer/api-handler.js"));
   await cp(join(root, "src/adapters/lambda-layer/resolve-input.js"), join(outDir, "adapters/lambda-layer/resolve-input.js"));
   await cp(join(root, "src/core/compile.js"), join(outDir, "core/compile.js"));
   await cp(join(root, "src/core/state.js"), join(outDir, "core/state.js"));
   await cp(join(root, "src/core/validate.js"), join(outDir, "core/validate.js"));
+  await cp(join(root, "src/core/assets.js"), join(outDir, "core/assets.js"));
 
   // Minimal package.json for Lambda
   await writeFile(

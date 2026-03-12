@@ -1,6 +1,6 @@
-# Lambda (AWS SDK) — Phase 2
+# Lambda (AWS SDK) — Phase 2 & 3
 
-Deploy Typst compilation as an AWS Lambda function. Clients invoke via AWS SDK. State tracking in DynamoDB; optional S3 storage for output PDFs.
+Deploy Typst compilation as an AWS Lambda function. Clients invoke via AWS SDK or REST API (API Gateway). State tracking in DynamoDB; optional S3 storage for output PDFs.
 
 ## Architecture
 
@@ -162,8 +162,29 @@ const result = JSON.parse(new TextDecoder().decode(Payload));
 | documentId | No (compile) | Custom ID; generated if omitted |
 | documentId | Yes (status/retrieve) | Document to query |
 
+## REST API (Phase 3)
+
+When API Gateway is enabled (default), you can call the same logic via HTTP:
+
+```bash
+export API_URL=$(pulumi stack output apiUrl)
+curl -X POST "$API_URL/compile" \
+  -H "Content-Type: application/json" \
+  -d '{"mainTyp":"'$(echo -n '#set page(width: 100pt)\nHello!' | base64)'","storeToS3":true}'
+```
+
+See [docs/api/](../api/README.md) for full REST API documentation.
+
+## Phase 3: Fonts, assets, customer S3
+
+- **fonts** — `[{ name: "fonts/custom.otf", base64: "..." }]` or S3 refs (OTF, TTF, TTC)
+- **assets** — `[{ name: "logo.png", base64: "..." }]` (PNG, JPEG, GIF, WebP, SVG)
+- **outputS3** — Customer-owned bucket: `{ bucket: "my-bucket", keyPrefix: "pdfs/" }`
+
+Configure `customerOutputBuckets` in Pulumi for IAM access to customer S3.
+
 ## Limits
 
-- **Payload size:** 6MB sync, 256KB async
+- **Payload size:** 6MB sync, 256KB async; 10MB for REST API
 - **S3 key:** No path traversal (`..`), ASCII only
 - **document_id:** 1–128 chars, alphanumeric, hyphens, underscores

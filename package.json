@@ -4,10 +4,10 @@
   "description": "Containerized and serverless Typst compilation",
   "type": "module",
   "scripts": {
-    "test": "node --test test/core/validate.test.js test/core/state.test.js",
+    "test": "node --test test/core/validate.test.js test/core/state.test.js test/core/assets.test.js",
     "test:core": "npm run test",
     "test:full": "docker run --rm --entrypoint node -v \"$(pwd):/project\" -w /project typst-serverless:test --test 'test/core/*.test.js'",
-    "test:integration": "node --test test/integration/container.test.js test/integration/lambda.test.js",
+    "test:integration": "node --test test/integration/container.test.js test/integration/lambda.test.js test/integration/api.test.js",
     "test:lambda": "node --test test/integration/lambda.test.js",
     "compile": "node src/adapters/container/cli.js",
     "build:layer": "node scripts/build-typst-layer.js",

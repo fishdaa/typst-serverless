@@ -7,7 +7,7 @@ Typst Serverless provides multiple ways to compile Typst documents to PDF. Choos
 | **Container (Docker)** | Run as a Docker container; volume or pipe output. [→ docs/container/](container/README.md) |
 | **Lambda** | Serverless on AWS; invoke via SDK. [→ docs/lambda/](lambda/README.md) |
 | **Integrations** | Node.js, Python, Go, Ruby. [→ docs/integrations/](integrations/README.md) |
-| **REST API** | HTTP endpoints via API Gateway (Phase 3). |
+| **REST API** | HTTP endpoints via API Gateway. [→ docs/api/](api/README.md) |
 | **ECR / ECS / EKS** | Deploy container to AWS (optional). |
 
 ## Container (Phase 1)

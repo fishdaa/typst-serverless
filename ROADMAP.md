@@ -34,9 +34,15 @@
 | | 2.8 One-click deploy — `npm run build:lambda` + `pulumi up` | ✅ |
 | | 2.9 LocalStack verification — E2E Lambda tests against LocalStack (optional) | Pending |
 | | 2.10 Multi-region layer publish — CI publishes Typst layer to multiple AWS regions | ✅ |
+| **Phase 3** | 3.1 Testing — Param-format, asset validation, REST validation | ✅ |
+| | 3.2 Fonts/assets — Custom fonts, image injection, asset validation | ✅ |
+| | 3.3 API Gateway — REST API, request validation | ✅ |
+| | 3.4 S3 delivery — Customer-owned S3 destination | ✅ |
+| | 3.5 Docs — docs/api/, auth.md, integrations REST examples | ✅ |
+| **Phase 4** | Output variants, webhooks, batch | Pending |
 | **Tooling** | TypeScript, Vitest | Pending |
 
-Phase 3 and Phase 4 are not started. ECR (2.6) is deferred.
+Phase 4 is not started. ECR (2.6) is deferred.
 
 ### Proof (tests & example code)
 
@@ -58,6 +64,11 @@ Phase 3 and Phase 4 are not started. ECR (2.6) is deferred.
 | **2.7** | `docs/lambda/README.md` — deploy, invoke, S3; `docs/integrations/*.md` — Lambda SDK examples (e.g. `node-fastify.md` "Lambda (AWS SDK)" section). |
 | **2.8** | `package.json`: `build:lambda`, `deploy:lambda`; `docs/lambda/README.md` "One-click deploy" section with `npm run build:lambda` + `pulumi up`. |
 | **2.10** | `.github/workflows/publish-lambda-layer.yml` — publishes layer to multiple regions; `docs/lambda/README.md` "Publish Layer to Multiple Regions (CI)" section. |
+| **3.1** | `test/core/assets.test.js`, `test/integration/api.test.js` — asset validation, REST event parsing, 10MB limit. |
+| **3.2** | `src/core/assets.js` — `validateAssetKey`, `validateAssetRef`, `validateAssets`; `resolve-input.js` — fonts/assets; handler validates before compile. |
+| **3.3** | `src/adapters/lambda-layer/api-handler.js`, `index.js`; Pulumi: API Gateway HTTP API, routes POST /compile, GET /documents/{id}, GET /documents/{id}/pdf. |
+| **3.4** | Handler: `outputS3: { bucket, keyPrefix }`; Pulumi `customerOutputBuckets` config for IAM. |
+| **3.5** | `docs/api/README.md`, `docs/api/auth.md`; `docs/getting-started.md`, `docs/lambda/README.md`, `docs/integrations/node-fastify.md` updated. |
 
 ---
 

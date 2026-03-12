@@ -5,6 +5,7 @@
 
 const SYNC_MAX_BYTES = 6 * 1024 * 1024;  // 6MB
 const ASYNC_MAX_BYTES = 256 * 1024;      // 256KB
+const REST_MAX_BYTES = 10 * 1024 * 1024; // 10MB for API Gateway
 
 /** Valid document_id: alphanumeric, hyphens, underscores; 1-128 chars */
 const DOCUMENT_ID_REGEX = /^[a-zA-Z0-9_-]{1,128}$/;
@@ -31,6 +32,23 @@ export function validatePayloadSize(event, asyncInvoke = false) {
     return {
       valid: false,
       error: `Payload exceeds ${asyncInvoke ? "256KB" : "6MB"} limit (${bytes} bytes)`,
+    };
+  }
+  return { valid: true };
+}
+
+/**
+ * Validate REST API body size (10MB for API Gateway).
+ * @param {string|Buffer} body - Request body
+ * @returns {{ valid: boolean; error?: string }}
+ */
+export function validateRestPayloadSize(body) {
+  if (!body) return { valid: true };
+  const bytes = typeof body === "string" ? Buffer.byteLength(body, "utf8") : body.length;
+  if (bytes > REST_MAX_BYTES) {
+    return {
+      valid: false,
+      error: `Request body exceeds 10MB limit (${bytes} bytes)`,
     };
   }
   return { valid: true };
@@ -84,7 +102,7 @@ export function validateS3Ref(ref) {
 /**
  * Validate compile event schema.
  * Required: mainTyp (base64) XOR mainTypS3 (bucket, key)
- * Optional: dataJson (base64), storeToS3 (bool), documentId (for tracking)
+ * Optional: dataJson (base64), storeToS3 (bool), documentId, fonts[], assets[]
  */
 export function validateCompileEvent(event) {
   if (!event || typeof event !== "object") {
