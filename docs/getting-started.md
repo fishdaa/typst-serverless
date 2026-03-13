@@ -4,6 +4,9 @@ Typst Serverless provides multiple ways to compile Typst documents to PDF. Choos
 
 | Use Case | Description |
 |----------|-------------|
+| **Options Matrix** | All permutations (sync/async, S3, SQS, batch). [→ docs/options](options.md) |
+| **Lambda Options** | All actions and params: compile, status, retrieve, batch. [→ docs/lambda-options](lambda-options.md) |
+| **API Gateway Options** | REST endpoints, params, curl examples (when API Gateway used). [→ docs/api-gateway-options](api-gateway-options.md) |
 | **Container (Docker)** | Run as a Docker container; volume or pipe output. [→ docs/container/](container/README.md) |
 | **Lambda** | Serverless on AWS; invoke via SDK. [→ docs/lambda/](lambda/README.md) |
 | **Integrations** | Node.js, Python, Go, Ruby. [→ docs/integrations/](integrations/README.md) |

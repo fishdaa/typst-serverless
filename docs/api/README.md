@@ -2,6 +2,8 @@
 
 HTTP endpoints for Typst compilation via API Gateway. Deploy with `enableApiGateway: true` (default).
 
+**Full reference:** [docs/api-gateway-options.md](../api-gateway-options.md) — all endpoints, params, curl examples.
+
 ## Endpoints
 
 | Method | Path | Description |

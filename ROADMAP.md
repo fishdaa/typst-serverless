@@ -5,7 +5,8 @@
 **Phase 1:** Docker packaging with internal state tracking.  
 **Phase 2:** Lambda + DynamoDB (MVP features).  
 **Phase 3:** Fonts, assets, API Gateway, and S3 delivery.  
-**Phase 4:** Output variants, webhooks, and batch jobs.
+**Phase 4:** Output variants, webhooks, and batch jobs.  
+**Phase 5:** Optional SQS queuing, parallelized batch (1 doc per Lambda), batch status endpoint, deploy TUI.
 
 **Architecture principle:** Core codebase is output-agnostic. Same compilation logic runs as containerized (Docker), Lambda (Node.js + Typst Layer), or via ECR (ECS, EKS).
 
@@ -45,9 +46,16 @@
 | | 4.3 Webhooks — POST completion/failure to user URL | ✅ |
 | | 4.4 Batch — Multi-document compile flows | ✅ |
 | | 4.5 Docs — api/, lambda/, integrations webhook & batch patterns | ✅ |
+| **Phase 5** | 5.1 SQS infrastructure (optional) — Pulumi: SQS queue, DLQ, event source mapping; config flag `enableSqs` | Planned |
+| | 5.2 API: enqueue for batch — When SQS enabled, `POST /batch` enqueues messages, returns `batchId`; batch disabled for sync or no-S3 | Planned |
+| | 5.3 Lambda: SQS trigger handler — Process single compile per message; write `batchId` to DynamoDB per document | Planned |
+| | 5.4 Batch status — `GET /batches/{batchId}` returns per-item status and S3 links for completed items | Planned |
+| | 5.5 TUI deploy — Interactive setup guides user through SQS, S3, API options | Planned |
+| | 5.6 Docs — Update docs/lambda/, docs/api/, getting-started with SQS and batch status | Planned |
+| | 5.7 dataJson — Support base64 + S3 ref `{ bucket, key }` for template data; resolve in resolve-input | Planned |
 | **Tooling** | TypeScript, Vitest, build (tsc), Tests to TS, ESLint (linting), Devbox (dev shell), CI | TypeScript+Vitest ✅; Tests to TS ✅; ESLint ✅; Devbox ✅; CI ✅ |
 
-Phase 4 complete. Phase 2.6 (ECR) complete. Tooling complete.
+Phase 4 complete. Phase 2.6 (ECR) complete. Phase 5 planned. Tooling complete.
 
 ### Proof (tests & example code)
 
@@ -81,6 +89,13 @@ Phase 4 complete. Phase 2.6 (ECR) complete. Tooling complete.
 | **4.3** | Handler: `webhook.url` validation; `invokeWebhook()` POSTs on completion/failure; `validateWebhookUrl` (HTTPS only). |
 | **4.4** | Handler: `action: "batch"`, `validateBatchEvent`; processes `documents` array; API handler `POST /batch`. |
 | **4.5** | `docs/api/README.md` — outputFormat, pdfStandard, webhook, POST /batch; `docs/lambda/README.md` Phase 4 section. |
+| **5.1** | Pulumi: `aws.sqs.Queue`, DLQ, `aws.lambda.EventSourceMapping`; config `enableSqs`. |
+| **5.2** | API handler: when SQS enabled, POST /batch enqueues to SQS; returns `batchId`, `documentIds`; batch disabled when sync or S3 opted out. |
+| **5.3** | Lambda SQS event handler: one compile per message; DynamoDB item includes `batch_id`. |
+| **5.4** | API route `GET /batches/{id}`; query DynamoDB by `batch_id` (GSI); return per-item status + S3 links. |
+| **5.5** | `scripts/deploy-tui.ts` or interactive Pulumi config prompts for SQS, S3, API options. |
+| **5.6** | `docs/lambda/README.md`, `docs/api/README.md`, `docs/getting-started.md` — SQS, batch status, batch disable rules. |
+| **5.7** | Handler, resolve-input: `dataJson` base64 or S3 `{ bucket, key }`; write data.json to workDir for Typst. |
 | **Tooling (CI)** | `.github/workflows/ci.yml` — lint, build, unit/integration tests (core, lambda, api, webhooks-batch), container tests (Docker), LocalStack E2E (sync + async). Uses setup-typst, LocalStack service. |
 | **Bundler** | `rollup.config.lambda.js` — bundles Lambda handler + core + AWS SDK; `npm run build:lambda` produces `dist-lambda/` with single bundle, no node_modules. |
 
@@ -138,6 +153,7 @@ Lambda uses **Node.js runtime**; Typst binary in Layer; zip deployment (no conta
 | Lambda + API Gateway | Lambda, API GW | Sync | REST endpoints; return PDF as multipart; no DynamoDB, no S3 |
 | Lambda + API Gateway + S3 | Lambda, API GW, S3 | Sync | REST; store PDF in S3; return presigned URL |
 | Lambda + API Gateway + DynamoDB | Lambda, API GW, DynamoDB | Sync/Async | REST; state in DynamoDB; return multipart |
+| Lambda + API Gateway + SQS + DynamoDB + S3 | Lambda, API GW, SQS, DynamoDB, S3 | Async (Phase 5) | REST; SQS queuing; batch via SQS; batch status endpoint |
 
 Pulumi in `adapters/lambda-layer/pulumi/` supports multiple stacks (lambda-only, lambda-dynamodb, lambda-api, etc.).
 
@@ -167,6 +183,9 @@ src/
 | File | Description |
 |------|-------------|
 | `docs/getting-started.md` | Entry point; branches to use-case-specific sections |
+| `docs/options.md` | Options matrix — all permutations of sync/async, S3, SQS, batch |
+| `docs/lambda-options.md` | Lambda actions reference — compile, status, retrieve, batch and all params |
+| `docs/api-gateway-options.md` | API Gateway REST reference — endpoints, params, curl examples |
 | `docs/container/` | Docker / container use cases (volume, pipe, state) |
 | `docs/integrations/` | Language/framework guides (Node, Python, Go, PHP, Ruby). **Updated per phase** — each phase adds integration patterns for the new output (container → Lambda SDK → REST API). |
 | `docs/lambda/` | Lambda (SDK) use cases (sync, async, S3, DynamoDB) |
@@ -233,6 +252,7 @@ Getting started flow: user selects use case (container, Lambda, REST API, ECR) �
 | 2 | Lambda integration tests — validation (schema, size, S3 keys); **LocalStack E2E** — sync (in-memory) and async (DynamoDB + S3) modes; no real AWS |
 | 3 | Param-format tests; request validation (size, schema, path); E2E for REST (API Gateway) |
 | 4 | E2E for webhooks and batch |
+| 5 | E2E for SQS enqueue, batch status, batch disable rules; LocalStack SQS |
 
 ---
 
@@ -371,4 +391,56 @@ Client (AWS SDK) → Lambda (Node.js + Layer) → DynamoDB (state)
 | 4.3 | Webhooks — Invoke user URL on completion |
 | 4.4 | Batch — Support multi-document compile flows |
 | 4.5 | Docs — `docs/ecr/` (optional); complete getting-started branching; **update `docs/integrations/`** — add async/webhook and batch patterns per language as relevant |
+
+---
+
+## Phase 5: SQS Queuing & Parallelized Batch
+
+**Goal:** Avoid 429s under load via optional SQS queuing; parallelize batch (1 Lambda per document) when SQS is enabled; add batch status endpoint; TUI-guided deploy for SQS/S3 options.
+
+**Architecture:**
+
+- **Sync path (no SQS):** API Gateway → Lambda. Unchanged; batch not available.
+- **Async path (SQS enabled):** API Gateway → SQS (enqueue) → Lambda (event-source mapped). 1 message per document; 1 Lambda invocation per document. DynamoDB stores state per document with `batch_id` for batch status.
+
+**Features:**
+
+| Feature | Description |
+|---------|-------------|
+| Optional SQS | Config flag `enableSqs`; when enabled, compile jobs can be enqueued instead of direct invoke |
+| Batch via SQS | `POST /batch` enqueues 1 SQS message per document; returns `batchId` + `documentIds[]`; each Lambda processes 1 document |
+| Batch status | `GET /batches/{batchId}` returns per-item status; completed items include S3 presigned links |
+| Batch disable rules | Batch available only when SQS enabled AND S3 enabled; disabled for sync path or user opt-out of S3 |
+| TUI deploy | Interactive setup guides user through SQS, S3, API options |
+
+**Batch status response shape:**
+
+```json
+{
+  "batchId": "uuid",
+  "results": [
+    { "documentId": "...", "status": "completed", "s3Url": "..." },
+    { "documentId": "...", "status": "compiling" },
+    { "documentId": "...", "status": "failed", "error": "..." }
+  ]
+}
+```
+
+**File references:**
+
+- `src/adapters/lambda-layer/handler.ts` — Current `handleBatch` (sequential) bypassed when SQS path used; add SQS event handler
+- `src/adapters/lambda-layer/api-handler.ts` — Add batch enqueue logic; add `GET /batches/{id}` routing
+- `src/adapters/lambda-layer/pulumi/index.ts` — Add optional SQS, DLQ, event source mapping
+- DynamoDB: GSI on `batch_id` to support batch status query
+- New: deploy TUI script (e.g. `scripts/deploy-tui.ts` or interactive Pulumi config)
+
+| Milestone | Tasks |
+|-----------|-------|
+| 5.1 | IaC — Pulumi: SQS queue, DLQ, Lambda event source mapping; config `enableSqs` |
+| 5.2 | API — When SQS enabled, `POST /batch` enqueues messages; returns `batchId`; batch disabled for sync or no-S3 |
+| 5.3 | Lambda — SQS trigger handler: process 1 compile per message; write `batch_id` to DynamoDB |
+| 5.4 | Batch status — `GET /batches/{batchId}`; query DynamoDB by `batch_id`; return per-item status + S3 links |
+| 5.5 | TUI deploy — Interactive setup guides user through SQS, S3, API options |
+| 5.6 | Docs — Update `docs/lambda/`, `docs/api/`, getting-started with SQS, batch status, batch disable rules |
+| 5.7 | dataJson — Base64 or S3 `{ bucket, key }` for template data; resolve in resolve-input; write data.json to workDir |
 
