@@ -11,6 +11,8 @@ import {
   validateS3Ref,
   validateCompileEvent,
   validateStatusEvent,
+  validateWebhookUrl,
+  validateBatchEvent,
 } from "../../src/core/validate.js";
 
 describe("core/validate", () => {
@@ -119,6 +121,47 @@ describe("core/validate", () => {
 
     it("rejects missing documentId", () => {
       assert.strictEqual(validateStatusEvent({}).valid, false);
+    });
+  });
+
+  describe("validateWebhookUrl", () => {
+    it("accepts valid https URL", () => {
+      assert.strictEqual(validateWebhookUrl("https://api.example.com/cb").valid, true);
+    });
+
+    it("rejects http URL", () => {
+      const r = validateWebhookUrl("http://example.com/cb");
+      assert.strictEqual(r.valid, false);
+      assert(r.error?.includes("https"));
+    });
+
+    it("rejects localhost", () => {
+      assert.strictEqual(validateWebhookUrl("https://localhost/cb").valid, false);
+      assert.strictEqual(validateWebhookUrl("https://127.0.0.1/cb").valid, false);
+    });
+
+    it("rejects invalid URL", () => {
+      assert.strictEqual(validateWebhookUrl("not-a-url").valid, false);
+    });
+  });
+
+  describe("validateBatchEvent", () => {
+    it("accepts non-empty documents array", () => {
+      const r = validateBatchEvent({ documents: [{ mainTyp: "e30=" }] });
+      assert.strictEqual(r.valid, true);
+      assert.strictEqual(r.documents.length, 1);
+    });
+
+    it("rejects missing documents", () => {
+      assert.strictEqual(validateBatchEvent({}).valid, false);
+    });
+
+    it("rejects non-array documents", () => {
+      assert.strictEqual(validateBatchEvent({ documents: "x" }).valid, false);
+    });
+
+    it("rejects empty documents array", () => {
+      assert.strictEqual(validateBatchEvent({ documents: [] }).valid, false);
     });
   });
 });

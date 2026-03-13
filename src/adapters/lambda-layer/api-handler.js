@@ -70,6 +70,9 @@ export async function handler(event) {
   if (method === "POST" && (path === "/compile" || path?.startsWith("/compile"))) {
     return await handleCompile(body);
   }
+  if (method === "POST" && (path === "/batch" || path?.startsWith("/batch"))) {
+    return await handleBatch(body);
+  }
   if (method === "GET" && id) {
     if (path?.endsWith("/pdf")) {
       return await handleRetrieve(id);
@@ -92,6 +95,20 @@ async function handleCompile(bodyStr) {
   }
   const lambdaEvent = { ...payload, action: "compile" };
   const res = await lambdaHandler(lambdaEvent, {});
+  return toHttpResponse(res);
+}
+
+async function handleBatch(bodyStr) {
+  if (!bodyStr || bodyStr.trim().length === 0) {
+    return httpResponse(400, { error: "Request body is required" });
+  }
+  let payload;
+  try {
+    payload = JSON.parse(bodyStr);
+  } catch {
+    return httpResponse(400, { error: "Invalid JSON body" });
+  }
+  const res = await lambdaHandler({ ...payload, action: "batch" }, {});
   return toHttpResponse(res);
 }
 

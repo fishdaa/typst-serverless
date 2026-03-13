@@ -128,6 +128,47 @@ export function validateCompileEvent(event) {
 }
 
 /**
+ * Validate webhook URL. Must be HTTPS (security).
+ * @param {string} url
+ * @returns {{ valid: boolean; error?: string }}
+ */
+export function validateWebhookUrl(url) {
+  if (!url || typeof url !== "string") {
+    return { valid: false, error: "webhook.url is required" };
+  }
+  try {
+    const u = new URL(url);
+    if (u.protocol !== "https:") {
+      return { valid: false, error: "webhook URL must use https" };
+    }
+    if (u.hostname === "localhost" || u.hostname === "127.0.0.1") {
+      return { valid: false, error: "webhook URL cannot be localhost" };
+    }
+    return { valid: true };
+  } catch {
+    return { valid: false, error: "webhook URL is invalid" };
+  }
+}
+
+/**
+ * Validate batch event: documents must be non-empty array.
+ * @param {object} event
+ * @returns {{ valid: boolean; error?: string; documents?: Array }}
+ */
+export function validateBatchEvent(event) {
+  if (!event || typeof event !== "object") {
+    return { valid: false, error: "Event must be an object" };
+  }
+  if (!Array.isArray(event.documents)) {
+    return { valid: false, error: "batch.documents must be an array" };
+  }
+  if (event.documents.length === 0) {
+    return { valid: false, error: "batch.documents cannot be empty" };
+  }
+  return { valid: true, documents: event.documents };
+}
+
+/**
  * Validate status/retrieve event: documentId required.
  */
 export function validateStatusEvent(event) {

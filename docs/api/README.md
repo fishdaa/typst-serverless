@@ -1,4 +1,4 @@
-# REST API (API Gateway) — Phase 3
+# REST API (API Gateway) — Phase 3 & 4
 
 HTTP endpoints for Typst compilation via API Gateway. Deploy with `enableApiGateway: true` (default).
 
@@ -6,7 +6,8 @@ HTTP endpoints for Typst compilation via API Gateway. Deploy with `enableApiGate
 
 | Method | Path | Description |
 |--------|------|-------------|
-| POST | `/compile` | Compile .typ source to PDF |
+| POST | `/compile` | Compile .typ source to PDF, SVG, or PNG |
+| POST | `/batch` | Compile multiple documents |
 | GET | `/documents/{id}` | Get document status |
 | GET | `/documents/{id}/pdf` | Get presigned URL to download PDF (when stored in S3) |
 
@@ -36,6 +37,9 @@ pulumi stack output apiUrl
 - `assets` — Array of images: `[{ "name": "logo.png", "base64": "..." }]` or S3 refs
 - `mainTypS3` — `{ "bucket": "...", "key": "..." }` instead of inline
 - `outputS3` — Customer-owned S3: `{ "bucket": "my-bucket", "keyPrefix": "pdfs/" }`
+- `outputFormat` — Output format: `"pdf"` (default), `"svg"`, or `"png"`
+- `pdfStandard` — PDF standard for PDF output: `"a-2b"`, `"a-3b"`, `"1.4"`, `"1.5"`, etc.
+- `webhook` — `{ "url": "https://..." }` — POST completion status and s3Url/pdf to your endpoint
 - `dataJson` — Base64-encoded JSON for template data
 
 **Response (200):**
@@ -45,6 +49,25 @@ pulumi stack output apiUrl
 **Limits:**
 - Body size: 10MB
 - Asset formats: PNG, JPEG, GIF, WebP, SVG (images); OTF, TTF, TTC (fonts)
+
+## POST /batch
+
+Compile multiple documents in one request.
+
+**Request:** `Content-Type: application/json`
+
+```json
+{
+  "documents": [
+    { "mainTyp": "<base64>", "storeToS3": true },
+    { "mainTypS3": { "bucket": "...", "key": "..." } }
+  ]
+}
+```
+
+**Response (200):** `{ "results": [ { "documentId", "status", "s3Url?", "error?" }, ... ] }`
+
+Each item in `documents` supports the same fields as POST /compile (fonts, assets, outputFormat, webhook, etc.).
 
 ## GET /documents/{id}
 

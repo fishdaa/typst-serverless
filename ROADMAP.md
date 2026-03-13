@@ -39,8 +39,12 @@
 | | 3.3 API Gateway — REST API, request validation | ✅ |
 | | 3.4 S3 delivery — Customer-owned S3 destination | ✅ |
 | | 3.5 Docs — docs/api/, auth.md, integrations REST examples | ✅ |
-| **Phase 4** | Output variants, webhooks, batch | Pending |
-| **Tooling** | TypeScript, Vitest | Pending |
+| **Phase 4** | 4.1 Testing — E2E webhooks, batch, output variants | ✅ |
+| | 4.2 Output options — PDF variants (--pdf-standard), SVG/PNG | ✅ |
+| | 4.3 Webhooks — POST completion/failure to user URL | ✅ |
+| | 4.4 Batch — Multi-document compile flows | ✅ |
+| | 4.5 Docs — api/, lambda/, integrations webhook & batch patterns | ✅ |
+| **Tooling** | TypeScript, Vitest, build (Vite/Rollup/Rolldown) | Pending |
 
 Phase 4 is not started. ECR (2.6) is deferred.
 
@@ -69,6 +73,11 @@ Phase 4 is not started. ECR (2.6) is deferred.
 | **3.3** | `src/adapters/lambda-layer/api-handler.js`, `index.js`; Pulumi: API Gateway HTTP API, routes POST /compile, GET /documents/{id}, GET /documents/{id}/pdf. |
 | **3.4** | Handler: `outputS3: { bucket, keyPrefix }`; Pulumi `customerOutputBuckets` config for IAM. |
 | **3.5** | `docs/api/README.md`, `docs/api/auth.md`; `docs/getting-started.md`, `docs/lambda/README.md`, `docs/integrations/node-fastify.md` updated. |
+| **4.1** | `test/integration/webhooks-batch.test.js` — output variants, webhooks, batch validation. Run: `npm run test:integration`. |
+| **4.2** | `src/core/compile.js` — `format` (pdf/svg/png), `pdfStandard` (a-2b, a-3b, etc.); handler passes through `outputFormat`, `pdfStandard`. |
+| **4.3** | Handler: `webhook.url` validation; `invokeWebhook()` POSTs on completion/failure; `validateWebhookUrl` (HTTPS only). |
+| **4.4** | Handler: `action: "batch"`, `validateBatchEvent`; processes `documents` array; API handler `POST /batch`. |
+| **4.5** | `docs/api/README.md` — outputFormat, pdfStandard, webhook, POST /batch; `docs/lambda/README.md` Phase 4 section. |
 
 ---
 
@@ -80,9 +89,12 @@ Phase 4 is not started. ECR (2.6) is deferred.
 |------|--------------|
 | **TypeScript** | Add `tsconfig.json`; migrate `src/` and `test/` from `.js` to `.ts`; use `tsc` for build; update `build-lambda-package.js` to copy compiled output |
 | **Vitest** | Replace Node `node:test` runner with Vitest; migrate `assert` → `expect()`; add `vitest.config.ts`; enable watch mode, coverage (optional) |
-| **Build** | Keep current copy-based flow; `tsc` emits to `dist/` or `dist-lambda/`. Optionally consider Rollup later for bundling/tree-shaking if beneficial |
+| **Build** | TypeScript `tsc` emits to `dist/`; Lambda package copies from `dist/` or bundled output. Bundler options: |
+| **Rollup** | Production bundler; ESM tree-shaking; single-file Lambda output; smaller deploy; stable today |
+| **Vite** | Dev + build; uses Rollup for prod; `vite build --config` for library/Node target; shares config with Vitest |
+| **Rolldown** | Rollup-compatible Rust bundler; faster; experimental; Vite team's future direction — evaluate when stable |
 
-**Order:** TypeScript first (tsconfig + migrate), then Vitest (config + migrate tests). Scripts and Lambda handler must point at compiled output.
+**Order:** TypeScript (tsconfig + migrate) → Vitest (config + migrate tests) → bundler (Rollup or Vite; Rolldown when stable). Scripts and Lambda handler must point at compiled output.
 
 ---
 

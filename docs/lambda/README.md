@@ -1,6 +1,6 @@
-# Lambda (AWS SDK) — Phase 2 & 3
+# Lambda (AWS SDK) — Phase 2, 3 & 4
 
-Deploy Typst compilation as an AWS Lambda function. Clients invoke via AWS SDK or REST API (API Gateway). State tracking in DynamoDB; optional S3 storage for output PDFs.
+Deploy Typst compilation as an AWS Lambda function. Clients invoke via AWS SDK or REST API (API Gateway). State tracking in DynamoDB; optional S3 storage for output PDFs, SVG, or PNG.
 
 ## Architecture
 
@@ -155,12 +155,16 @@ const result = JSON.parse(new TextDecoder().decode(Payload));
 
 | Field | Required | Description |
 |-------|----------|-------------|
-| action | No | `compile` (default), `status`, `retrieve` |
+| action | No | `compile` (default), `status`, `retrieve`, `batch` |
 | mainTyp | Yes (compile) | Base64-encoded .typ source |
 | mainTypS3 | Yes (compile) | `{ bucket, key }` — must use input bucket |
-| storeToS3 | No | If true, store PDF in S3; return presigned URL |
+| storeToS3 | No | If true, store output in S3; return presigned URL |
+| outputFormat | No | `pdf` (default), `svg`, or `png` |
+| pdfStandard | No | PDF standard: `a-2b`, `a-3b`, `1.4`, `1.5`, etc. (PDF only) |
+| webhook | No | `{ url: "https://..." }` — POST completion/failure to your endpoint |
 | documentId | No (compile) | Custom ID; generated if omitted |
 | documentId | Yes (status/retrieve) | Document to query |
+| documents | Yes (batch) | Array of compile events (each with mainTyp or mainTypS3) |
 
 ## REST API (Phase 3)
 
@@ -182,6 +186,45 @@ See [docs/api/](../api/README.md) for full REST API documentation.
 - **outputS3** — Customer-owned bucket: `{ bucket: "my-bucket", keyPrefix: "pdfs/" }`
 
 Configure `customerOutputBuckets` in Pulumi for IAM access to customer S3.
+
+## Phase 4: Output variants, webhooks, batch
+
+- **outputFormat** — `"pdf"` (default), `"svg"`, or `"png"`
+- **pdfStandard** — For PDF output: `"a-2b"`, `"a-3b"`, `"1.4"`, `"1.5"`, etc.
+- **webhook** — `{ url: "https://your-endpoint.com/cb" }` — Lambda POSTs `{ documentId, status, s3Url?, pdf?, error? }` on completion or failure. URL must be HTTPS.
+- **batch** — `action: "batch"`, `documents: [{ mainTyp, storeToS3 }, ...]` — Compile multiple documents; returns `{ results: [{ documentId, status, s3Url?, error? }, ...] }`
+
+### Example: compile with webhook
+
+```javascript
+const { Payload } = await lambda.send(new InvokeCommand({
+  FunctionName: "typst-compile-xxx",
+  Payload: JSON.stringify({
+    action: "compile",
+    mainTyp: Buffer.from("#hello\n").toString("base64"),
+    storeToS3: true,
+    webhook: { url: "https://api.example.com/typst-callback" },
+  }),
+}));
+// Webhook receives POST on completion: { documentId, status: "completed", s3Url }
+```
+
+### Example: batch compile
+
+```javascript
+const { Payload } = await lambda.send(new InvokeCommand({
+  FunctionName: "typst-compile-xxx",
+  Payload: JSON.stringify({
+    action: "batch",
+    documents: [
+      { mainTyp: Buffer.from("#doc1\n").toString("base64") },
+      { mainTyp: Buffer.from("#doc2\n").toString("base64"), storeToS3: true },
+    ],
+  }),
+}));
+const result = JSON.parse(new TextDecoder().decode(Payload));
+// result.results = [{ documentId, status }, { documentId, status, s3Url }]
+```
 
 ## Limits
 
