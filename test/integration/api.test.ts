@@ -1,16 +1,20 @@
 /**
  * API Gateway integration tests (Phase 3).
  * Validates REST event parsing, body size, path params, JSON schema.
- * Run: node --test test/integration/api.test.js
  */
-import { describe, it } from "node:test";
+import { describe, it } from "vitest";
 import assert from "node:assert";
 import { handler } from "../../src/adapters/lambda-layer/api-handler.js";
 
 const FIXTURE_TYP = "#set page(width: 100pt)\nHello, API!";
 const FIXTURE_B64 = Buffer.from(FIXTURE_TYP, "utf-8").toString("base64");
 
-function apiEvent(method, path, body, pathParams = {}) {
+function apiEvent(
+  method: string,
+  path: string,
+  body: object | null,
+  pathParams: Record<string, string> = {}
+) {
   const rawPath = path || "/compile";
   const routeKey = `${method} ${rawPath}`;
   return {

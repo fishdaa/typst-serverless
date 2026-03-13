@@ -102,19 +102,46 @@ Invoke via AWS SDK — see [docs/lambda/](docs/lambda/README.md) for compile, st
 └── package.json
 ```
 
-## Tests
+## Development & Tests
+
+- **Install dependencies**:
 
 ```bash
-# Core unit tests (requires typst in PATH for compile tests)
+npm install
+```
+
+- **Build TypeScript** (emits to `dist/`):
+
+```bash
+npm run build
+```
+
+- **Run tests** (Vitest):
+
+```bash
+# Full test suite: build + core + integration + LocalStack (requires Docker, LocalStack)
 npm test
 
-# Container integration tests (requires Docker)
-docker build -t typst-serverless:test .
+# Core/unit tests only
+npm run test:core
+
+# Integration tests (container, Lambda, API, webhooks, batch)
 npm run test:integration
 
-# Lambda validation tests
+# Lambda-only tests
 npm run test:lambda
+
+# LocalStack E2E (sync + async)
+localstack start && ./scripts/localstack-setup.sh && npm run test:localstack
 ```
+
+If you use [Devbox](https://github.com/jetify-com/devbox), `devbox shell` provides a dev environment with Typst and Node.js so compile tests can run without additional system setup.
+
+## Contributing
+
+1. **Set up** — run `./setup.sh` to install dependencies, build, and run core tests.
+2. **Run tests** before submitting: `npm test` (full suite; requires Docker + LocalStack) or `npm run test:core` (core only; requires Typst in PATH, e.g. `devbox shell`).
+3. Keep changes typed (TypeScript in `src/`), add or update tests as needed.
 
 ## Documentation
 

@@ -2,10 +2,9 @@
  * State interface unit tests.
  * Tests: in-memory and file-based state implementations.
  */
-import { describe, it } from "node:test";
+import { describe, it } from "vitest";
 import assert from "node:assert";
-import { createInMemoryState } from "../../src/core/state.js";
-import { createFileState } from "../../src/core/state.js";
+import { createInMemoryState, createFileState } from "../../src/core/state.js";
 import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
@@ -16,7 +15,7 @@ describe("core/state - InMemoryState", () => {
     const id = "doc-123";
     await state.set(id, { status: "pending", createdAt: Date.now() });
     const doc = await state.get(id);
-    assert.strictEqual(doc.status, "pending");
+    assert.strictEqual(doc?.status, "pending");
   });
 
   it("update document status", async () => {
@@ -25,7 +24,7 @@ describe("core/state - InMemoryState", () => {
     await state.set(id, { status: "pending" });
     await state.update(id, { status: "completed" });
     const doc = await state.get(id);
-    assert.strictEqual(doc.status, "completed");
+    assert.strictEqual(doc?.status, "completed");
   });
 
   it("returns undefined for missing document", async () => {
@@ -43,8 +42,8 @@ describe("core/state - FileState", () => {
       const id = "doc-789";
       await state.set(id, { status: "compiling", outputPath: "/workspace/out.pdf" });
       const doc = await state.get(id);
-      assert.strictEqual(doc.status, "compiling");
-      assert.strictEqual(doc.outputPath, "/workspace/out.pdf");
+      assert.strictEqual(doc?.status, "compiling");
+      assert.strictEqual(doc?.outputPath, "/workspace/out.pdf");
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -58,7 +57,7 @@ describe("core/state - FileState", () => {
       await state.set(id, { status: "pending" });
       await state.update(id, { status: "completed" });
       const doc = await state.get(id);
-      assert.strictEqual(doc.status, "completed");
+      assert.strictEqual(doc?.status, "completed");
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

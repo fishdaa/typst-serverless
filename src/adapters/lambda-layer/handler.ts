@@ -1,9 +1,9 @@
 /**
  * Lambda handler for Typst Serverless.
- * Actions: compile, status, retrieve
+ * Actions: compile, status, retrieve, batch
  */
 import { compile } from "../../core/compile.js";
-import { createDynamoDBState } from "../../core/state.js";
+import { createDynamoDBState, createInMemoryState } from "../../core/state.js";
 import {
   validatePayloadSize,
   validateCompileEvent,
@@ -29,13 +29,28 @@ const STATE_TABLE = process.env.TYPST_STATE_TABLE || "typst-documents";
 const OUTPUT_BUCKET = process.env.TYPST_OUTPUT_BUCKET;
 const PRESIGNED_EXPIRY = parseInt(process.env.TYPST_PRESIGNED_EXPIRY || "3600", 10);
 
-const dynamo = DynamoDBDocumentClient.from(new DynamoDBClient({}));
-const s3 = new S3Client({});
+const endpoint = process.env.TYPST_AWS_ENDPOINT || process.env.AWS_ENDPOINT_URL;
+const region = process.env.AWS_REGION || "us-east-1";
+const dynamo = DynamoDBDocumentClient.from(
+  new DynamoDBClient(
+    endpoint ? { endpoint, region, credentials: { accessKeyId: "test", secretAccessKey: "test" } } : {}
+  )
+);
+const s3 = new S3Client(
+  endpoint
+    ? { endpoint, region, credentials: { accessKeyId: "test", secretAccessKey: "test" }, forcePathStyle: true }
+    : {}
+);
 
-/**
- * Fire-and-forget webhook POST. Does not block response.
- */
-function invokeWebhook(url, payload) {
+const USE_IN_MEMORY_STATE = process.env.TYPST_USE_IN_MEMORY_STATE === "true" || process.env.TYPST_USE_IN_MEMORY_STATE === "1";
+const inMemoryState = USE_IN_MEMORY_STATE ? createInMemoryState() : null;
+
+function getState() {
+  if (inMemoryState) return inMemoryState;
+  return createDynamoDBState({ tableName: STATE_TABLE, documentClient: dynamo });
+}
+
+function invokeWebhook(url: string, payload: object): void {
   const data = JSON.stringify(payload);
   const u = new URL(url);
   const opts = {
@@ -46,12 +61,14 @@ function invokeWebhook(url, payload) {
     headers: { "Content-Type": "application/json", "Content-Length": Buffer.byteLength(data) },
   };
   const req = (u.protocol === "https:" ? https : http).request(opts);
-  req.on("error", (e) => console.error("Webhook error:", e.message));
+  req.on("error", (e: Error) => {
+    if (!process.env.VITEST) console.error("Webhook error:", e.message);
+  });
   req.write(data);
   req.end();
 }
 
-function lambdaResponse(statusCode, body, headers = {}) {
+function lambdaResponse(statusCode: number, body: object | string, headers: Record<string, string> = {}) {
   return {
     statusCode,
     headers: { "Content-Type": "application/json", ...headers },
@@ -59,11 +76,35 @@ function lambdaResponse(statusCode, body, headers = {}) {
   };
 }
 
-export async function handler(event, context) {
+interface LambdaEvent {
+  action?: string;
+  Action?: string;
+  invocationType?: string;
+  async?: boolean;
+  mainTyp?: string;
+  mainTypS3?: { bucket: string; key: string };
+  documentId?: string;
+  fonts?: unknown[];
+  assets?: unknown[];
+  outputS3?: { bucket: string; keyPrefix?: string };
+  webhook?: { url: string };
+  storeToS3?: boolean;
+  outputFormat?: string;
+  format?: string;
+  pdfStandard?: string;
+  documents?: unknown[];
+  [key: string]: unknown;
+}
+
+export async function handler(event: LambdaEvent, _context?: unknown): Promise<{
+  statusCode: number;
+  headers: Record<string, string>;
+  body: string;
+  isBase64Encoded?: boolean;
+}> {
   const action = (event.action || event.Action || "compile").toLowerCase();
   const asyncInvoke = event.invocationType === "Event" || event.async === true;
 
-  // Payload size validation
   const sizeCheck = validatePayloadSize(event, asyncInvoke);
   if (!sizeCheck.valid) {
     return lambdaResponse(413, { error: sizeCheck.error });
@@ -76,22 +117,22 @@ export async function handler(event, context) {
     if (action === "batch") return await handleBatch(event);
     return lambdaResponse(400, { error: `Unknown action: ${action}` });
   } catch (err) {
-    console.error(err);
-    return lambdaResponse(500, { error: err.message || "Internal error" });
+    if (!process.env.VITEST) console.error(err);
+    return lambdaResponse(500, { error: (err as Error).message || "Internal error" });
   }
 }
 
-async function handleCompile(event) {
+async function handleCompile(event: LambdaEvent) {
   const validation = validateCompileEvent(event);
   if (!validation.valid) {
     return lambdaResponse(400, { error: validation.error });
   }
   if (event.fonts?.length) {
-    const fontsCheck = validateAssets(event.fonts, "font");
+    const fontsCheck = validateAssets(event.fonts as Array<{ name?: string; bucket?: string; key?: string; base64?: string }>, "font");
     if (!fontsCheck.valid) return lambdaResponse(400, { error: fontsCheck.error });
   }
   if (event.assets?.length) {
-    const assetsCheck = validateAssets(event.assets, "image");
+    const assetsCheck = validateAssets(event.assets as Array<{ name?: string; bucket?: string; key?: string; base64?: string }>, "image");
     if (!assetsCheck.valid) return lambdaResponse(400, { error: assetsCheck.error });
   }
   if (event.outputS3 && (!event.outputS3.bucket || typeof event.outputS3.bucket !== "string")) {
@@ -105,14 +146,11 @@ async function handleCompile(event) {
   const documentId = event.documentId || randomUUID();
   const outputS3 = event.outputS3 && typeof event.outputS3.bucket === "string" ? event.outputS3 : null;
   const storeToS3 = !!(event.storeToS3 && (OUTPUT_BUCKET || outputS3?.bucket));
-  const state = createDynamoDBState({ tableName: STATE_TABLE, documentClient: dynamo });
+  const state = getState();
 
-  let workDir;
+  let workDir: string | undefined;
   try {
-    await state.set(documentId, {
-      status: "pending",
-      createdAt: Date.now(),
-    });
+    await state.set(documentId, { status: "pending", createdAt: Date.now() });
     await state.update(documentId, { status: "compiling" });
 
     const { workDir: wd, mainPath } = await resolveMainTyp(event, s3);
@@ -120,14 +158,18 @@ async function handleCompile(event) {
     const format = (event.outputFormat || event.format || "pdf").toLowerCase();
     const ext = ["pdf", "svg", "png"].includes(format) ? format : "pdf";
     const outputPath = join(workDir, `output.${ext}`);
-    const compileOpts = { typstPath: TYPST_PATH, format: ext };
+    const compileOpts: { typstPath: string; format: string; pdfStandard?: string } = {
+      typstPath: TYPST_PATH,
+      format: ext,
+    };
     if (event.pdfStandard) compileOpts.pdfStandard = String(event.pdfStandard).toLowerCase();
     await compile(mainPath, outputPath, compileOpts);
 
     if (storeToS3) {
       const fs = await import("node:fs/promises");
       const outBuffer = await fs.readFile(outputPath);
-      const bucket = outputS3?.bucket || OUTPUT_BUCKET;
+      const bucket = outputS3?.bucket ?? OUTPUT_BUCKET;
+      if (!bucket) throw new Error("Output bucket not configured (TYPST_OUTPUT_BUCKET or outputS3.bucket)");
       const keyPrefix = (outputS3?.keyPrefix || "outputs/").replace(/\/?$/, "/");
       const s3Key = `${keyPrefix}${documentId}.${ext}`;
       const keyCheck = validateS3Key(s3Key);
@@ -143,11 +185,7 @@ async function handleCompile(event) {
           ContentType: contentType,
         })
       );
-      await state.update(documentId, {
-        status: "completed",
-        s3_key: s3Key,
-        s3_bucket: bucket,
-      });
+      await state.update(documentId, { status: "completed", s3_key: s3Key, s3_bucket: bucket });
       const url = await getSignedUrl(
         s3,
         new GetObjectCommand({ Bucket: bucket, Key: s3Key }),
@@ -156,14 +194,9 @@ async function handleCompile(event) {
       if (event.webhook?.url) {
         invokeWebhook(event.webhook.url, { documentId, status: "completed", s3Url: url });
       }
-      return lambdaResponse(200, {
-        documentId,
-        status: "completed",
-        s3Url: url,
-      });
+      return lambdaResponse(200, { documentId, status: "completed", s3Url: url });
     }
 
-    // Default: return output inline (base64)
     const fs = await import("node:fs/promises");
     const outBuffer = await fs.readFile(outputPath);
     await state.update(documentId, { status: "completed" });
@@ -188,13 +221,13 @@ async function handleCompile(event) {
     };
   } catch (err) {
     try {
-      await state.update(documentId, { status: "failed", error: err.message });
+      await state.update(documentId, { status: "failed", error: (err as Error).message });
     } catch {}
     if (event.webhook?.url) {
-      invokeWebhook(event.webhook.url, { documentId, status: "failed", error: err.message });
+      invokeWebhook(event.webhook.url, { documentId, status: "failed", error: (err as Error).message });
     }
     return lambdaResponse(500, {
-      error: err.message,
+      error: (err as Error).message,
       documentId,
       status: "failed",
     });
@@ -207,19 +240,22 @@ async function handleCompile(event) {
   }
 }
 
-async function handleStatus(event) {
+async function handleStatus(event: LambdaEvent) {
   const validation = validateStatusEvent(event);
   if (!validation.valid) {
     return lambdaResponse(400, { error: validation.error });
   }
-
-  const state = createDynamoDBState({ tableName: STATE_TABLE, documentClient: dynamo });
-  const doc = await state.get(event.documentId);
+  const docId = event.documentId;
+  if (typeof docId !== "string") {
+    return lambdaResponse(400, { error: "documentId required" });
+  }
+  const state = getState();
+  const doc = await state.get(docId);
   if (!doc) {
     return lambdaResponse(404, { error: "Document not found" });
   }
   return lambdaResponse(200, {
-    documentId: event.documentId,
+    documentId: docId,
     status: doc.status,
     s3_key: doc.s3_key,
     createdAt: doc.createdAt,
@@ -228,14 +264,17 @@ async function handleStatus(event) {
   });
 }
 
-async function handleRetrieve(event) {
+async function handleRetrieve(event: LambdaEvent) {
   const validation = validateStatusEvent(event);
   if (!validation.valid) {
     return lambdaResponse(400, { error: validation.error });
   }
-
-  const state = createDynamoDBState({ tableName: STATE_TABLE, documentClient: dynamo });
-  const doc = await state.get(event.documentId);
+  const docId = event.documentId;
+  if (typeof docId !== "string") {
+    return lambdaResponse(400, { error: "documentId required" });
+  }
+  const state = getState();
+  const doc = await state.get(docId);
   if (!doc) {
     return lambdaResponse(404, { error: "Document not found" });
   }
@@ -259,14 +298,14 @@ async function handleRetrieve(event) {
   });
 }
 
-async function handleBatch(event) {
+async function handleBatch(event: LambdaEvent) {
   const validation = validateBatchEvent(event);
   if (!validation.valid) {
     return lambdaResponse(400, { error: validation.error });
   }
-  const results = [];
-  for (const doc of event.documents) {
-    const subEvent = { ...doc, action: "compile" };
+  const results: Array<{ documentId?: string; status: string; error?: string; s3Url?: string }> = [];
+  for (const doc of event.documents || []) {
+    const subEvent = { ...(doc as LambdaEvent), action: "compile" };
     const res = await handler(subEvent, {});
     const body = typeof res.body === "string" ? JSON.parse(res.body) : res.body;
     results.push({

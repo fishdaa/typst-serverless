@@ -226,6 +226,22 @@ const result = JSON.parse(new TextDecoder().decode(Payload));
 // result.results = [{ documentId, status }, { documentId, status, s3Url }]
 ```
 
+## LocalStack testing
+
+Run Lambda E2E tests against [LocalStack](https://localstack.cloud/) (no real AWS):
+
+```bash
+localstack start
+./scripts/localstack-setup.sh   # Creates DynamoDB table + S3 buckets
+npm run test:localstack
+```
+
+**Sync mode** (no DynamoDB): `TYPST_USE_IN_MEMORY_STATE=1`. Compile → immediate response. Lambda only (inline) or lambda + S3.
+
+**Async mode** (DynamoDB + S3): status, retrieve, full workflow.
+
+Both modes run via `npm run test:localstack` (part of `npm test`).
+
 ## Limits
 
 - **Payload size:** 6MB sync, 256KB async; 10MB for REST API

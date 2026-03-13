@@ -3,9 +3,9 @@
  * Tests: compile .typ -> PDF, error handling, output path.
  * Run via `npm test` (inside Docker) — typst is available in the container.
  */
-import { describe, it } from "node:test";
+import { describe, it } from "vitest";
 import assert from "node:assert";
-import { compile } from "../../src/core/compile.js";
+import { compile } from "../../src/core/compile";
 import { join } from "node:path";
 import { readFileSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -15,6 +15,8 @@ const FIXTURES = join(import.meta.dirname, "../fixtures");
 
 describe("core/compile", () => {
   it("compiles minimal.typ to PDF", async () => {
+    const typstPath = process.env.TYPST_PATH;
+    if (!typstPath && process.env.CI) return;
     const outDir = mkdtempSync(join(tmpdir(), "typst-test-"));
     try {
       const input = join(FIXTURES, "minimal.typ");
@@ -30,6 +32,8 @@ describe("core/compile", () => {
   });
 
   it("compiles simple-doc.typ to PDF", async () => {
+    const typstPath = process.env.TYPST_PATH;
+    if (!typstPath && process.env.CI) return;
     const outDir = mkdtempSync(join(tmpdir(), "typst-test-"));
     try {
       const input = join(FIXTURES, "simple-doc.typ");

@@ -2,7 +2,7 @@
  * Validation unit tests.
  * Tests: payload size, document_id, S3 key, event schema.
  */
-import { describe, it } from "node:test";
+import { describe, it } from "vitest";
 import assert from "node:assert";
 import {
   validatePayloadSize,
@@ -74,8 +74,8 @@ describe("core/validate", () => {
     });
 
     it("rejects missing bucket or key", () => {
-      assert.strictEqual(validateS3Ref({ key: "x" }).valid, false);
-      assert.strictEqual(validateS3Ref({ bucket: "b" }).valid, false);
+      assert.strictEqual(validateS3Ref({ key: "x" } as { bucket: string; key: string }).valid, false);
+      assert.strictEqual(validateS3Ref({ bucket: "b" } as { bucket: string; key: string }).valid, false);
     });
   });
 
@@ -157,7 +157,7 @@ describe("core/validate", () => {
     });
 
     it("rejects non-array documents", () => {
-      assert.strictEqual(validateBatchEvent({ documents: "x" }).valid, false);
+      assert.strictEqual(validateBatchEvent({ documents: "x" } as { documents: unknown }).valid, false);
     });
 
     it("rejects empty documents array", () => {

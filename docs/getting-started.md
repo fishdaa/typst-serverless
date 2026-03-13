@@ -59,4 +59,9 @@ See [docs/container/](container/README.md) for volume, pipe, and state tracking 
    }));
    ```
 
-See [docs/lambda/](lambda/README.md) for compile, status, retrieve, and S3 options.
+4. **Test locally** with LocalStack (optional):
+   ```bash
+   localstack start && ./scripts/localstack-setup.sh && npm run test:localstack
+   ```
+
+See [docs/lambda/](lambda/README.md) for compile, status, retrieve, S3, and LocalStack testing.

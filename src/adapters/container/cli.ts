@@ -2,15 +2,8 @@
 /**
  * Container CLI adapter.
  * Invokes core compile; supports volume, pipe, state via env vars.
- * Env:
- *   TYPST_WORKSPACE - workspace dir (default /workspace)
- *   TYPST_MAIN     - main.typ path relative to workspace (default main.typ)
- *   TYPST_OUTPUT   - output PDF path relative to workspace (default output.pdf)
- *   TYPST_PIPE     - if "true", stream PDF to stdout after write
- *   TYPST_STATE    - if "true", track state in .typst-state
  */
 import { join } from "node:path";
-import { createWriteStream } from "node:fs";
 import { readFileSync } from "node:fs";
 import { compile } from "../../core/compile.js";
 import { createFileState } from "../../core/state.js";
@@ -26,9 +19,9 @@ const inputPath = join(WORKSPACE, MAIN);
 const outputPath = join(WORKSPACE, OUTPUT);
 const stateDir = join(WORKSPACE, ".typst-state");
 
-let docId;
+let docId: string | undefined;
 
-async function main() {
+async function main(): Promise<void> {
   try {
     docId = randomUUID();
     if (STATE) {
@@ -39,7 +32,7 @@ async function main() {
 
     await compile(inputPath, outputPath);
 
-    if (STATE) {
+    if (STATE && docId) {
       const state = createFileState(stateDir);
       await state.update(docId, { status: "completed", outputPath });
     }
@@ -54,10 +47,10 @@ async function main() {
     if (STATE && docId) {
       try {
         const state = createFileState(stateDir);
-        await state.update(docId, { status: "failed", error: String(err.message) });
+        await state.update(docId, { status: "failed", error: String((err as Error).message) });
       } catch {}
     }
-    console.error(err.message || err);
+    console.error((err as Error).message || err);
     process.exit(1);
   }
 }

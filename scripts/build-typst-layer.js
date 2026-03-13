@@ -41,7 +41,6 @@ async function main() {
   await run("tar", ["-xJf", tarPath, "-C", extractDir]);
 
   const findTypstBin = async (dir) => {
-    const fs = await import("node:fs");
     const entries = await readdir(dir, { withFileTypes: true });
     for (const e of entries) {
       const p = join(dir, e.name);

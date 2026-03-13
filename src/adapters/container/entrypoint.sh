@@ -8,7 +8,7 @@ INPUT="${WORKSPACE}/${MAIN}"
 if [ -f "$INPUT" ]; then
   # Use our Node CLI when main.typ exists and node is available
   if command -v node >/dev/null 2>&1; then
-    exec node /app/src/adapters/container/cli.js
+    exec node /app/dist/adapters/container/cli.js
   fi
   # Fallback: run typst directly
   OUTPUT="${TYPST_OUTPUT:-output.pdf}"

@@ -1,8 +1,7 @@
 /**
  * Asset validation tests (Phase 3).
- * Run: node --test test/core/assets.test.js
  */
-import { describe, it } from "node:test";
+import { describe, it } from "vitest";
 import assert from "node:assert";
 import {
   validateAssetKey,
@@ -58,7 +57,7 @@ describe("assets validation", () => {
     });
 
     it("rejects missing bucket", () => {
-      const r = validateAssetRef({ key: "logo.png" }, "image");
+      const r = validateAssetRef({ key: "logo.png" } as { bucket: string; key: string }, "image");
       assert.strictEqual(r.valid, false);
     });
 
@@ -91,7 +90,7 @@ describe("assets validation", () => {
     });
 
     it("rejects asset without name", () => {
-      const r = validateAssets([{ bucket: "b", key: "x.png" }], "image");
+      const r = validateAssets([{ bucket: "b", key: "x.png" }] as never, "image");
       assert.strictEqual(r.valid, false);
       assert(r.error?.includes("name"));
     });

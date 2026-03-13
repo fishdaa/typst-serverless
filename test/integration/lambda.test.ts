@@ -1,11 +1,9 @@
 /**
  * Lambda integration tests.
- * Uses aws-sdk-mock to mock DynamoDB/S3; handler logic is tested.
- * Run: node --test test/integration/lambda.test.js
- *
+ * Uses AWS SDK mocking; handler logic is tested.
  * Full E2E requires: LocalStack, SAM Local, or deployed Lambda.
  */
-import { describe, it, before, after } from "node:test";
+import { describe, it } from "vitest";
 import assert from "node:assert";
 import { handler } from "../../src/adapters/lambda-layer/handler.js";
 
@@ -85,19 +83,15 @@ describe("lambda integration", () => {
 
   describe("compile (requires typst + AWS)", () => {
     it("compiles inline mainTyp when typst and DynamoDB available", async () => {
-      // Skip if TYPST_PATH not set (typical in CI without layer)
       const typstPath = process.env.TYPST_PATH;
       if (!typstPath && process.env.CI) {
-        console.log("Skipping compile test: no TYPST_PATH in CI");
         return;
       }
-      // Will fail with DynamoDB/S3 not configured - that's expected without LocalStack
       const res = await handler({
         action: "compile",
         mainTyp: FIXTURE_B64,
         documentId: "test-doc-1",
       });
-      // Either success (200) or 500 if DynamoDB/S3 unavailable
       assert([200, 500].includes(res.statusCode));
       if (res.statusCode === 200) {
         const body = JSON.parse(res.body);

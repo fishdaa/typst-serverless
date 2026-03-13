@@ -10,21 +10,31 @@ const REST_MAX_BYTES = 10 * 1024 * 1024; // 10MB for API Gateway
 /** Valid document_id: alphanumeric, hyphens, underscores; 1-128 chars */
 const DOCUMENT_ID_REGEX = /^[a-zA-Z0-9_-]{1,128}$/;
 
-/** S3 key: no path traversal, valid charset */
-function isValidS3Key(key) {
+export interface ValidationResult {
+  valid: boolean;
+  error?: string;
+  documents?: unknown[];
+}
+
+export interface S3Ref {
+  bucket: string;
+  key: string;
+}
+
+function isValidS3Key(key: unknown): boolean {
   if (typeof key !== "string" || key.length === 0 || key.length > 1024) return false;
   if (key.includes("..") || key.startsWith("/")) return false;
-  if (/[^\x00-\x7F]/.test(key)) return false;  // ASCII only for simplicity
+  if (/[^\x00-\x7F]/.test(key)) return false;
   return true;
 }
 
 /**
  * Validate event payload size.
- * @param {object} event - Lambda event
- * @param {boolean} [asyncInvoke=false]
- * @returns {{ valid: boolean; error?: string }}
  */
-export function validatePayloadSize(event, asyncInvoke = false) {
+export function validatePayloadSize(
+  event: object,
+  asyncInvoke = false
+): ValidationResult {
   const limit = asyncInvoke ? ASYNC_MAX_BYTES : SYNC_MAX_BYTES;
   const json = JSON.stringify(event);
   const bytes = Buffer.byteLength(json, "utf8");
@@ -39,10 +49,8 @@ export function validatePayloadSize(event, asyncInvoke = false) {
 
 /**
  * Validate REST API body size (10MB for API Gateway).
- * @param {string|Buffer} body - Request body
- * @returns {{ valid: boolean; error?: string }}
  */
-export function validateRestPayloadSize(body) {
+export function validateRestPayloadSize(body: string | Buffer | null | undefined): ValidationResult {
   if (!body) return { valid: true };
   const bytes = typeof body === "string" ? Buffer.byteLength(body, "utf8") : body.length;
   if (bytes > REST_MAX_BYTES) {
@@ -56,10 +64,8 @@ export function validateRestPayloadSize(body) {
 
 /**
  * Validate document_id format.
- * @param {string} id
- * @returns {{ valid: boolean; error?: string }}
  */
-export function validateDocumentId(id) {
+export function validateDocumentId(id: unknown): ValidationResult {
   if (!id || typeof id !== "string") {
     return { valid: false, error: "document_id is required" };
   }
@@ -71,10 +77,8 @@ export function validateDocumentId(id) {
 
 /**
  * Validate S3 key (no path traversal).
- * @param {string} key
- * @returns {{ valid: boolean; error?: string }}
  */
-export function validateS3Key(key) {
+export function validateS3Key(key: unknown): ValidationResult {
   if (!key || typeof key !== "string") {
     return { valid: false, error: "S3 key is required" };
   }
@@ -87,29 +91,29 @@ export function validateS3Key(key) {
 /**
  * Validate S3 reference { bucket, key }.
  */
-export function validateS3Ref(ref) {
-  if (!ref || typeof ref !== "object") {
+export function validateS3Ref(ref: unknown): ValidationResult {
+  if (!ref || typeof ref !== "object" || Array.isArray(ref)) {
     return { valid: false, error: "S3 ref must be { bucket, key }" };
   }
-  if (!ref.bucket || typeof ref.bucket !== "string") {
+  const r = ref as Record<string, unknown>;
+  if (!r.bucket || typeof r.bucket !== "string") {
     return { valid: false, error: "S3 bucket is required" };
   }
-  const keyResult = validateS3Key(ref.key);
+  const keyResult = validateS3Key(r.key);
   if (!keyResult.valid) return keyResult;
   return { valid: true };
 }
 
 /**
  * Validate compile event schema.
- * Required: mainTyp (base64) XOR mainTypS3 (bucket, key)
- * Optional: dataJson (base64), storeToS3 (bool), documentId, fonts[], assets[]
  */
-export function validateCompileEvent(event) {
-  if (!event || typeof event !== "object") {
+export function validateCompileEvent(event: unknown): ValidationResult {
+  if (!event || typeof event !== "object" || Array.isArray(event)) {
     return { valid: false, error: "Event must be an object" };
   }
-  const hasInline = event.mainTyp && typeof event.mainTyp === "string";
-  const hasS3 = event.mainTypS3 && typeof event.mainTypS3 === "object";
+  const e = event as Record<string, unknown>;
+  const hasInline = e.mainTyp && typeof e.mainTyp === "string";
+  const hasS3 = e.mainTypS3 && typeof e.mainTypS3 === "object";
   if (!hasInline && !hasS3) {
     return { valid: false, error: "mainTyp (base64) or mainTypS3 (bucket, key) is required" };
   }
@@ -117,11 +121,11 @@ export function validateCompileEvent(event) {
     return { valid: false, error: "Provide mainTyp or mainTypS3, not both" };
   }
   if (hasS3) {
-    const s3 = validateS3Ref(event.mainTypS3);
+    const s3 = validateS3Ref(e.mainTypS3);
     if (!s3.valid) return s3;
   }
-  if (event.documentId) {
-    const id = validateDocumentId(event.documentId);
+  if (e.documentId) {
+    const id = validateDocumentId(e.documentId);
     if (!id.valid) return id;
   }
   return { valid: true };
@@ -129,10 +133,8 @@ export function validateCompileEvent(event) {
 
 /**
  * Validate webhook URL. Must be HTTPS (security).
- * @param {string} url
- * @returns {{ valid: boolean; error?: string }}
  */
-export function validateWebhookUrl(url) {
+export function validateWebhookUrl(url: unknown): ValidationResult {
   if (!url || typeof url !== "string") {
     return { valid: false, error: "webhook.url is required" };
   }
@@ -152,31 +154,31 @@ export function validateWebhookUrl(url) {
 
 /**
  * Validate batch event: documents must be non-empty array.
- * @param {object} event
- * @returns {{ valid: boolean; error?: string; documents?: Array }}
  */
-export function validateBatchEvent(event) {
-  if (!event || typeof event !== "object") {
+export function validateBatchEvent(event: unknown): ValidationResult & { documents?: unknown[] } {
+  if (!event || typeof event !== "object" || Array.isArray(event)) {
     return { valid: false, error: "Event must be an object" };
   }
-  if (!Array.isArray(event.documents)) {
+  const e = event as Record<string, unknown>;
+  if (!Array.isArray(e.documents)) {
     return { valid: false, error: "batch.documents must be an array" };
   }
-  if (event.documents.length === 0) {
+  if (e.documents.length === 0) {
     return { valid: false, error: "batch.documents cannot be empty" };
   }
-  return { valid: true, documents: event.documents };
+  return { valid: true, documents: e.documents };
 }
 
 /**
  * Validate status/retrieve event: documentId required.
  */
-export function validateStatusEvent(event) {
-  if (!event || typeof event !== "object") {
+export function validateStatusEvent(event: unknown): ValidationResult {
+  if (!event || typeof event !== "object" || Array.isArray(event)) {
     return { valid: false, error: "Event must be an object" };
   }
-  if (!event.documentId) {
+  const e = event as Record<string, unknown>;
+  if (!e.documentId) {
     return { valid: false, error: "documentId is required for status" };
   }
-  return validateDocumentId(event.documentId);
+  return validateDocumentId(e.documentId);
 }

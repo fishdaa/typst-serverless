@@ -1,16 +1,18 @@
 /**
  * Integration tests: output variants, webhooks, batch (Phase 4 features).
- * Run: node --test test/integration/output-webhooks-batch.test.js
  */
-import { describe, it } from "node:test";
+import { describe, it } from "vitest";
 import assert from "node:assert";
 import { handler } from "../../src/adapters/lambda-layer/handler.js";
 import { compile } from "../../src/core/compile.js";
-import { join } from "node:path";
+import { join, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const __testDir = dirname(fileURLToPath(import.meta.url));
 import { mkdtempSync, rmSync, readFileSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 
-const FIXTURES = join(import.meta.dirname, "../fixtures");
+const FIXTURES = join(__testDir, "../fixtures");
 const FIXTURE_TYP = "#set page(width: 100pt)\nHello!";
 const FIXTURE_B64 = Buffer.from(FIXTURE_TYP, "utf-8").toString("base64");
 
@@ -100,7 +102,7 @@ describe("batch", () => {
     const res = await handler({
       action: "batch",
       documents: "not-an-array",
-    });
+    } as { action: string; documents: unknown });
     assert.strictEqual(res.statusCode, 400);
     const body = JSON.parse(res.body);
     assert(body.error?.includes("documents") || body.error?.includes("array"));
@@ -125,7 +127,7 @@ describe("batch", () => {
     assert.strictEqual(body.results.length, 1);
   });
 
-  it("returns results for batch with valid documents", async () => {
+  it("returns results for batch with valid documents", { timeout: 30000 }, async () => {
     const res = await handler({
       action: "batch",
       documents: [{ mainTyp: FIXTURE_B64 }, { mainTyp: FIXTURE_B64 }],
@@ -134,7 +136,7 @@ describe("batch", () => {
     const body = JSON.parse(res.body);
     assert(Array.isArray(body.results));
     assert.strictEqual(body.results.length, 2);
-    body.results.forEach((r) => {
+    body.results.forEach((r: { documentId?: string; status: string }) => {
       assert(r.documentId, "each result should have documentId");
       assert(["completed", "failed"].includes(r.status));
     });

@@ -9,23 +9,24 @@ import { fileURLToPath } from "node:url";
 import { execSync } from "node:child_process";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
+const srcDir = join(root, "dist"); // TypeScript compiles to dist/
 const outDir = join(root, "dist-lambda");
 
 async function main() {
   await rm(outDir, { recursive: true, force: true });
   await mkdir(outDir, { recursive: true });
 
-  // Copy handler and core
+  // Copy compiled handler and core from dist/
   await mkdir(join(outDir, "adapters/lambda-layer"), { recursive: true });
   await mkdir(join(outDir, "core"), { recursive: true });
-  await cp(join(root, "src/adapters/lambda-layer/index.js"), join(outDir, "adapters/lambda-layer/index.js"));
-  await cp(join(root, "src/adapters/lambda-layer/handler.js"), join(outDir, "adapters/lambda-layer/handler.js"));
-  await cp(join(root, "src/adapters/lambda-layer/api-handler.js"), join(outDir, "adapters/lambda-layer/api-handler.js"));
-  await cp(join(root, "src/adapters/lambda-layer/resolve-input.js"), join(outDir, "adapters/lambda-layer/resolve-input.js"));
-  await cp(join(root, "src/core/compile.js"), join(outDir, "core/compile.js"));
-  await cp(join(root, "src/core/state.js"), join(outDir, "core/state.js"));
-  await cp(join(root, "src/core/validate.js"), join(outDir, "core/validate.js"));
-  await cp(join(root, "src/core/assets.js"), join(outDir, "core/assets.js"));
+  await cp(join(srcDir, "adapters/lambda-layer/index.js"), join(outDir, "adapters/lambda-layer/index.js"));
+  await cp(join(srcDir, "adapters/lambda-layer/handler.js"), join(outDir, "adapters/lambda-layer/handler.js"));
+  await cp(join(srcDir, "adapters/lambda-layer/api-handler.js"), join(outDir, "adapters/lambda-layer/api-handler.js"));
+  await cp(join(srcDir, "adapters/lambda-layer/resolve-input.js"), join(outDir, "adapters/lambda-layer/resolve-input.js"));
+  await cp(join(srcDir, "core/compile.js"), join(outDir, "core/compile.js"));
+  await cp(join(srcDir, "core/state.js"), join(outDir, "core/state.js"));
+  await cp(join(srcDir, "core/validate.js"), join(outDir, "core/validate.js"));
+  await cp(join(srcDir, "core/assets.js"), join(outDir, "core/assets.js"));
 
   // Minimal package.json for Lambda
   await writeFile(

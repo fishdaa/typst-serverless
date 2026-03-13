@@ -3,7 +3,7 @@
 FROM ghcr.io/typst/typst:0.14.2
 
 # Add Node.js for core logic (same code runs in Lambda)
-RUN apk add --no-cache nodejs
+RUN apk add --no-cache nodejs npm
 
 WORKDIR /app
 
@@ -11,12 +11,12 @@ WORKDIR /app
 COPY assets/fonts/ /app/fonts/
 COPY assets/templates/ /app/templates/
 
-# Core + container adapter
-COPY package.json /app/
+# Build: copy deps (include dev for tsc), build TypeScript
+COPY package.json package-lock.json* /app/
+COPY tsconfig.json /app/
 COPY src/ /app/src/
-
-# No npm install needed for Phase 1 (no deps)
-# RUN npm ci --omit=dev  # Add when we have deps
+RUN npm ci 2>/dev/null || npm install
+RUN npm run build
 
 COPY src/adapters/container/entrypoint.sh /app/entrypoint.sh
 RUN chmod +x /app/entrypoint.sh && chmod -R a+rX /app

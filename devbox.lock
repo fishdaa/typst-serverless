@@ -1,0 +1,250 @@
+{
+  "lockfile_version": "1",
+  "packages": {
+    "docker@29.2.1": {
+      "last_modified": "2026-02-27T06:27:13Z",
+      "resolved": "github:NixOS/nixpkgs/c0f3d81a7ddbc2b1332be0d8481a672b4f6004d6#docker",
+      "source": "devbox-search",
+      "version": "29.2.1",
+      "systems": {
+        "aarch64-darwin": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/3m9b097l6m26jjxpsjl2wz51fh48f58w-docker-29.2.1",
+              "default": true
+            }
+          ],
+          "store_path": "/nix/store/3m9b097l6m26jjxpsjl2wz51fh48f58w-docker-29.2.1"
+        },
+        "aarch64-linux": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/fsqhb9clm0zyz6nc8rc7c7rg667kxaws-docker-29.2.1",
+              "default": true
+            }
+          ],
+          "store_path": "/nix/store/fsqhb9clm0zyz6nc8rc7c7rg667kxaws-docker-29.2.1"
+        },
+        "x86_64-darwin": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/alfdw28kq3cnkmfpjq7abgxl13292sn6-docker-29.2.1",
+              "default": true
+            }
+          ],
+          "store_path": "/nix/store/alfdw28kq3cnkmfpjq7abgxl13292sn6-docker-29.2.1"
+        },
+        "x86_64-linux": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/9jk9p6679rz3lsc0mdnyf8h8yq4y8cc6-docker-29.2.1",
+              "default": true
+            }
+          ],
+          "store_path": "/nix/store/9jk9p6679rz3lsc0mdnyf8h8yq4y8cc6-docker-29.2.1"
+        }
+      }
+    },
+    "github:NixOS/nixpkgs/nixpkgs-unstable": {
+      "last_modified": "2026-03-11T04:01:32Z",
+      "resolved": "github:NixOS/nixpkgs/b6067cc0127d4db9c26c79e4de0513e58d0c40c9?lastModified=1773201692&narHash=sha256-NXrKzNMniu4Oam2kAFvqJ3GB2kAvlAFIriTAheaY8hw%3D"
+    },
+    "localstack@4.9.2": {
+      "last_modified": "2026-01-23T17:20:52Z",
+      "resolved": "github:NixOS/nixpkgs/a1bab9e494f5f4939442a57a58d0449a109593fe#localstack",
+      "source": "devbox-search",
+      "version": "4.9.2",
+      "systems": {
+        "aarch64-darwin": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/2gx0hkdhapr1nj29li5ky0v8jjy00nl1-localstack-4.9.2",
+              "default": true
+            },
+            {
+              "name": "dist",
+              "path": "/nix/store/f11q64qvcc91z4w1b7c1984wj7lm8jga-localstack-4.9.2-dist"
+            }
+          ],
+          "store_path": "/nix/store/2gx0hkdhapr1nj29li5ky0v8jjy00nl1-localstack-4.9.2"
+        },
+        "aarch64-linux": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/0x05ay1np0b4whkbblqvh4ycy34g845n-localstack-4.9.2",
+              "default": true
+            },
+            {
+              "name": "dist",
+              "path": "/nix/store/y4k36g0lslpsak1msnjhinzcdyahs145-localstack-4.9.2-dist"
+            }
+          ],
+          "store_path": "/nix/store/0x05ay1np0b4whkbblqvh4ycy34g845n-localstack-4.9.2"
+        },
+        "x86_64-darwin": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/0szdmkcdqi67x0852603xkajqkxxaqlq-localstack-4.9.2",
+              "default": true
+            },
+            {
+              "name": "dist",
+              "path": "/nix/store/h4h87w001yxcshwjc7lzcv7dnvfzf08g-localstack-4.9.2-dist"
+            }
+          ],
+          "store_path": "/nix/store/0szdmkcdqi67x0852603xkajqkxxaqlq-localstack-4.9.2"
+        },
+        "x86_64-linux": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/0p038h2d7jc0abvzdrfkr5fixz6y9fkc-localstack-4.9.2",
+              "default": true
+            },
+            {
+              "name": "dist",
+              "path": "/nix/store/gk9g5492xqqps1dnzz02263d5n81q7cx-localstack-4.9.2-dist"
+            }
+          ],
+          "store_path": "/nix/store/0p038h2d7jc0abvzdrfkr5fixz6y9fkc-localstack-4.9.2"
+        }
+      }
+    },
+    "nodejs@24": {
+      "last_modified": "2025-12-29T16:45:58Z",
+      "plugin_version": "0.0.2",
+      "resolved": "github:NixOS/nixpkgs/346dd96ad74dc4457a9db9de4f4f57dab2e5731d#nodejs_24",
+      "source": "devbox-search",
+      "version": "24.12.0",
+      "systems": {
+        "aarch64-darwin": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/b1h0af3yb3z9jz048phclcqw6ihiww67-nodejs-24.12.0",
+              "default": true
+            },
+            {
+              "name": "dev",
+              "path": "/nix/store/ksn4nj0nbp0ikmh4scy9x4biqqdswwhy-nodejs-24.12.0-dev"
+            },
+            {
+              "name": "libv8",
+              "path": "/nix/store/3x72bm7l30ib7l7cximrp0sklcq8jqwy-nodejs-24.12.0-libv8"
+            }
+          ],
+          "store_path": "/nix/store/b1h0af3yb3z9jz048phclcqw6ihiww67-nodejs-24.12.0"
+        },
+        "aarch64-linux": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/9jfsyhcr9c6rpm94lrkibv75jkggvwss-nodejs-24.12.0",
+              "default": true
+            },
+            {
+              "name": "dev",
+              "path": "/nix/store/7izhv9x1yvsmyrhmmyps6bxjjclajm80-nodejs-24.12.0-dev"
+            },
+            {
+              "name": "libv8",
+              "path": "/nix/store/8hl74pnc1qyz68rg10ixw7fz32hcxqkk-nodejs-24.12.0-libv8"
+            }
+          ],
+          "store_path": "/nix/store/9jfsyhcr9c6rpm94lrkibv75jkggvwss-nodejs-24.12.0"
+        },
+        "x86_64-darwin": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/cj1243xswxvnwgifyiyg8axhn0r2vl48-nodejs-24.12.0",
+              "default": true
+            },
+            {
+              "name": "dev",
+              "path": "/nix/store/kzia3rkaf9vwpn3py23q9v49jpjm6zx7-nodejs-24.12.0-dev"
+            },
+            {
+              "name": "libv8",
+              "path": "/nix/store/xszji81xj7ghjhz7jk0jkhb84nfwyd8f-nodejs-24.12.0-libv8"
+            }
+          ],
+          "store_path": "/nix/store/cj1243xswxvnwgifyiyg8axhn0r2vl48-nodejs-24.12.0"
+        },
+        "x86_64-linux": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/9z1v3wyrxp6fpyzw21lcakd5w7aknzyc-nodejs-24.12.0",
+              "default": true
+            },
+            {
+              "name": "libv8",
+              "path": "/nix/store/5yvx909wlis13qd2y1ahwl7ij21ma69a-nodejs-24.12.0-libv8"
+            },
+            {
+              "name": "dev",
+              "path": "/nix/store/7ll99p08gmpg0n048669p80zjibl5akr-nodejs-24.12.0-dev"
+            }
+          ],
+          "store_path": "/nix/store/9z1v3wyrxp6fpyzw21lcakd5w7aknzyc-nodejs-24.12.0"
+        }
+      }
+    },
+    "typst@0.14.2": {
+      "last_modified": "2026-02-23T15:40:43Z",
+      "resolved": "github:NixOS/nixpkgs/80d901ec0377e19ac3f7bb8c035201e2e098cc97#typst",
+      "source": "devbox-search",
+      "version": "0.14.2",
+      "systems": {
+        "aarch64-darwin": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/kxknx1lzdfqrqwacf48fspfzd47id4ws-typst-0.14.2",
+              "default": true
+            }
+          ],
+          "store_path": "/nix/store/kxknx1lzdfqrqwacf48fspfzd47id4ws-typst-0.14.2"
+        },
+        "aarch64-linux": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/hqxwx7x7nvr60spnylv8ah796yc10ygv-typst-0.14.2",
+              "default": true
+            }
+          ],
+          "store_path": "/nix/store/hqxwx7x7nvr60spnylv8ah796yc10ygv-typst-0.14.2"
+        },
+        "x86_64-darwin": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/8p86cnjy6fny1jmb4yv2b5740mnplavf-typst-0.14.2",
+              "default": true
+            }
+          ],
+          "store_path": "/nix/store/8p86cnjy6fny1jmb4yv2b5740mnplavf-typst-0.14.2"
+        },
+        "x86_64-linux": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/gixq35ir38xgnq6xwch7p95p36phppmp-typst-0.14.2",
+              "default": true
+            }
+          ],
+          "store_path": "/nix/store/gixq35ir38xgnq6xwch7p95p36phppmp-typst-0.14.2"
+        }
+      }
+    }
+  }
+}

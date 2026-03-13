@@ -3,17 +3,18 @@
  * Run: npm run test:integration (requires Docker)
  * Tests: docker run with volume, pipe modes; verify PDF output.
  */
-import { describe, it } from "node:test";
+import { describe, it } from "vitest";
 import assert from "node:assert";
-import { execSync, spawnSync } from "node:child_process";
+import { spawnSync } from "node:child_process";
 import { readFileSync, existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { join, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const __testDir = dirname(fileURLToPath(import.meta.url));
 import { tmpdir } from "node:os";
 
 const IMAGE = "typst-serverless:test";
-const FIXTURES = join(import.meta.dirname, "../fixtures");
-
-function docker(...args) {
+function docker(...args: string[]) {
   const { status, stdout, stderr } = spawnSync("docker", args, {
     encoding: "utf-8",
     timeout: 30000,
@@ -22,8 +23,8 @@ function docker(...args) {
 }
 
 describe("container integration (Docker)", () => {
-  it("builds image successfully", () => {
-    const root = join(import.meta.dirname, "../..");
+  it("builds image successfully", { timeout: 150000 }, () => {
+    const root = join(__testDir, "../..");
     const { status } = spawnSync("docker", ["build", "-t", IMAGE, "."], {
       cwd: root,
       encoding: "utf-8",
@@ -58,7 +59,6 @@ describe("container integration (Docker)", () => {
     const workDir = mkdtempSync(join(tmpdir(), "typst-pipe-"));
     try {
       writeFileSync(join(workDir, "main.typ"), "#set page(width: 80pt)\nPipe test");
-      const outPath = join(workDir, "piped.pdf");
       const { status } = spawnSync(
         "docker", [
           "run", "--rm",
@@ -74,10 +74,7 @@ describe("container integration (Docker)", () => {
           timeout: 15000,
         }
       );
-      assert.strictEqual(status, 0, "Container should exit 0");
-      // In pipe mode we need to capture stdout - our entrypoint should support this
-      // For now we'll verify the volume+pipe profile exists; full pipe capture may need script
-      assert(true, "Pipe mode container runs");
+      assert.strictEqual(status, 0, "Pipe mode container runs");
     } finally {
       try { rmSync(workDir, { recursive: true, force: true }); } catch {}
     }

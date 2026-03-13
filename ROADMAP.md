@@ -32,7 +32,7 @@
 | | 2.5 IAM role — DynamoDB, S3, CloudWatch Logs | ✅ |
 | | 2.7 Docs — lambda branch, integrations with Lambda examples | ✅ |
 | | 2.8 One-click deploy — `npm run build:lambda` + `pulumi up` | ✅ |
-| | 2.9 LocalStack verification — E2E Lambda tests against LocalStack (optional) | Pending |
+| | 2.9 LocalStack verification — E2E Lambda tests against LocalStack | ✅ |
 | | 2.10 Multi-region layer publish — CI publishes Typst layer to multiple AWS regions | ✅ |
 | **Phase 3** | 3.1 Testing — Param-format, asset validation, REST validation | ✅ |
 | | 3.2 Fonts/assets — Custom fonts, image injection, asset validation | ✅ |
@@ -44,9 +44,9 @@
 | | 4.3 Webhooks — POST completion/failure to user URL | ✅ |
 | | 4.4 Batch — Multi-document compile flows | ✅ |
 | | 4.5 Docs — api/, lambda/, integrations webhook & batch patterns | ✅ |
-| **Tooling** | TypeScript, Vitest, build (Vite/Rollup/Rolldown) | Pending |
+| **Tooling** | TypeScript, Vitest, build (tsc), Tests to TS, ESLint (linting), Devbox (dev shell) | TypeScript+Vitest ✅; Tests to TS pending; ESLint pending; Devbox ✅ |
 
-Phase 4 is not started. ECR (2.6) is deferred.
+Phase 4 complete. ECR (2.6) is deferred. Tooling (TypeScript, Vitest) complete.
 
 ### Proof (tests & example code)
 
@@ -67,6 +67,7 @@ Phase 4 is not started. ECR (2.6) is deferred.
 | **2.5** | Pulumi: `aws.iam.Role`, `RolePolicyAttachment` (basic), `RolePolicy` (DynamoDB, S3 Get/Put). |
 | **2.7** | `docs/lambda/README.md` — deploy, invoke, S3; `docs/integrations/*.md` — Lambda SDK examples (e.g. `node-fastify.md` "Lambda (AWS SDK)" section). |
 | **2.8** | `package.json`: `build:lambda`, `deploy:lambda`; `docs/lambda/README.md` "One-click deploy" section with `npm run build:lambda` + `pulumi up`. |
+| **2.9** | `test/integration/localstack.test.ts` — sync mode (TYPST_USE_IN_MEMORY_STATE; lambda only, lambda+S3) and async mode (DynamoDB + S3: status, retrieve, workflow). `scripts/localstack-setup.sh`, `scripts/test-localstack.sh`. Run: `localstack start && ./scripts/localstack-setup.sh && npm run test:localstack`. |
 | **2.10** | `.github/workflows/publish-lambda-layer.yml` — publishes layer to multiple regions; `docs/lambda/README.md` "Publish Layer to Multiple Regions (CI)" section. |
 | **3.1** | `test/core/assets.test.js`, `test/integration/api.test.js` — asset validation, REST event parsing, 10MB limit. |
 | **3.2** | `src/core/assets.js` — `validateAssetKey`, `validateAssetRef`, `validateAssets`; `resolve-input.js` — fonts/assets; handler validates before compile. |
@@ -81,20 +82,20 @@ Phase 4 is not started. ECR (2.6) is deferred.
 
 ---
 
-## Tooling (ASAP)
+## Tooling (Status & Next Steps)
 
-**Goal:** Migrate to TypeScript and Vitest for better DX, type safety, and test ergonomics.
+**Goal:** Improve DX with TypeScript, Vitest, and a consistent dev environment, then tighten the toolchain (linting, bundling).
 
 | Item | Description |
-|------|--------------|
-| **TypeScript** | Add `tsconfig.json`; migrate `src/` and `test/` from `.js` to `.ts`; use `tsc` for build; update `build-lambda-package.js` to copy compiled output |
-| **Vitest** | Replace Node `node:test` runner with Vitest; migrate `assert` → `expect()`; add `vitest.config.ts`; enable watch mode, coverage (optional) |
-| **Build** | TypeScript `tsc` emits to `dist/`; Lambda package copies from `dist/` or bundled output. Bundler options: |
-| **Rollup** | Production bundler; ESM tree-shaking; single-file Lambda output; smaller deploy; stable today |
-| **Vite** | Dev + build; uses Rollup for prod; `vite build --config` for library/Node target; shares config with Vitest |
-| **Rolldown** | Rollup-compatible Rust bundler; faster; experimental; Vite team's future direction — evaluate when stable |
+|------|-------------|
+| **TypeScript** | `tsconfig.json` added; `src/` migrated to `.ts`; `npm run build` uses `tsc` to emit to `dist/`; `build-lambda-package.js` copies compiled output from `dist/`. |
+| **Vitest** | Node `node:test` runner replaced with Vitest; `vitest.config.ts` added; `npm test`, `npm run test:core`, `npm run test:integration`, `npm run test:lambda`, `npm run test:localstack` run the suite. |
+| **Tests to TS** | **Next:** gradually migrate `test/` files from `.js` to `.ts` and import directly from `src/` (Vitest handles TS); remove any remaining `dist/` import indirection. |
+| **Build/bundler** | **Next:** keep `tsc` as the source of truth emitting to `dist/`; optionally introduce a bundler for Lambda (Rollup or Vite today; Rolldown later when stable) for smaller artifacts. |
+| **Linting** | **Next:** add ESLint with TypeScript-aware rules, an `npm run lint` script, and CI integration. |
+| **Devbox** | [Devbox](https://github.com/jetify-com/devbox) dev shell with Typst and Node.js; `devbox shell` gives a reproducible environment for `npm test` (including compile tests) without system-wide Typst. |
 
-**Order:** TypeScript (tsconfig + migrate) → Vitest (config + migrate tests) → bundler (Rollup or Vite; Rolldown when stable). Scripts and Lambda handler must point at compiled output.
+**Suggested order from here:** Tests to TS → Linting (ESLint + CI) → bundler (Rollup or Vite; Rolldown when stable). Scripts and Lambda handler should continue to point at compiled output in `dist/`.
 
 ---
 
@@ -225,7 +226,7 @@ Getting started flow: user selects use case (container, Lambda, REST API, ECR) �
 | Phase | Testing scope |
 |-------|---------------|
 | 1 | Core unit tests; container integration tests |
-| 2 | Lambda integration tests — validation (schema, size, S3 keys); **LocalStack verification** (E2E against DynamoDB, S3, Lambda without real AWS) |
+| 2 | Lambda integration tests — validation (schema, size, S3 keys); **LocalStack E2E** — sync (in-memory) and async (DynamoDB + S3) modes; no real AWS |
 | 3 | Param-format tests; request validation (size, schema, path); E2E for REST (API Gateway) |
 | 4 | E2E for webhooks and batch |
 
@@ -304,7 +305,7 @@ Client (AWS SDK) → Lambda (Node.js + Layer) → DynamoDB (state)
 | Lambda validations | Event schema validation; payload size (6MB sync, 256KB async); S3 key path validation (no traversal); document_id format on status/retrieve |
 | One-click deploy | Single command (e.g. `npx pulumi up` or deploy script) deploys full AWS stack; minimal config; outputs endpoints/URLs |
 | Multi-region layer | CI publishes Typst Lambda layer to multiple AWS regions (us-east-1, us-west-2, eu-west-1, etc.) on release or manual trigger |
-| LocalStack verification | E2E Lambda tests run against LocalStack for full compile/status/retrieve flow without real AWS |
+| LocalStack verification | E2E Lambda tests run against LocalStack: sync mode (TYPST_USE_IN_MEMORY_STATE; lambda only, lambda+S3) and async mode (DynamoDB + S3; status, retrieve, workflow). `npm run test:localstack`. |
 
 | Milestone | Tasks |
 |-----------|-------|
