@@ -44,9 +44,9 @@
 | | 4.3 Webhooks — POST completion/failure to user URL | ✅ |
 | | 4.4 Batch — Multi-document compile flows | ✅ |
 | | 4.5 Docs — api/, lambda/, integrations webhook & batch patterns | ✅ |
-| **Tooling** | TypeScript, Vitest, build (tsc), Tests to TS, ESLint (linting), Devbox (dev shell) | TypeScript+Vitest ✅; Tests to TS pending; ESLint pending; Devbox ✅ |
+| **Tooling** | TypeScript, Vitest, build (tsc), Tests to TS, ESLint (linting), Devbox (dev shell), CI | TypeScript+Vitest ✅; Tests to TS ✅; ESLint ✅; Devbox ✅; CI ✅ |
 
-Phase 4 complete. ECR (2.6) is deferred. Tooling (TypeScript, Vitest) complete.
+Phase 4 complete. ECR (2.6) is deferred. Tooling complete.
 
 ### Proof (tests & example code)
 
@@ -79,6 +79,7 @@ Phase 4 complete. ECR (2.6) is deferred. Tooling (TypeScript, Vitest) complete.
 | **4.3** | Handler: `webhook.url` validation; `invokeWebhook()` POSTs on completion/failure; `validateWebhookUrl` (HTTPS only). |
 | **4.4** | Handler: `action: "batch"`, `validateBatchEvent`; processes `documents` array; API handler `POST /batch`. |
 | **4.5** | `docs/api/README.md` — outputFormat, pdfStandard, webhook, POST /batch; `docs/lambda/README.md` Phase 4 section. |
+| **Tooling (CI)** | `.github/workflows/ci.yml` — lint, build, unit/integration tests (core, lambda, api, webhooks-batch), container tests (Docker), LocalStack E2E (sync + async). Uses setup-typst, LocalStack service. |
 
 ---
 
@@ -90,12 +91,12 @@ Phase 4 complete. ECR (2.6) is deferred. Tooling (TypeScript, Vitest) complete.
 |------|-------------|
 | **TypeScript** | `tsconfig.json` added; `src/` migrated to `.ts`; `npm run build` uses `tsc` to emit to `dist/`; `build-lambda-package.js` copies compiled output from `dist/`. |
 | **Vitest** | Node `node:test` runner replaced with Vitest; `vitest.config.ts` added; `npm test`, `npm run test:core`, `npm run test:integration`, `npm run test:lambda`, `npm run test:localstack` run the suite. |
-| **Tests to TS** | **Next:** gradually migrate `test/` files from `.js` to `.ts` and import directly from `src/` (Vitest handles TS); remove any remaining `dist/` import indirection. |
+| **Tests to TS** | Done. All `test/` files are `.ts`; imports from `src/` with `.js` extension (ESM). |
 | **Build/bundler** | **Next:** keep `tsc` as the source of truth emitting to `dist/`; optionally introduce a bundler for Lambda (Rollup or Vite today; Rolldown later when stable) for smaller artifacts. |
-| **Linting** | **Next:** add ESLint with TypeScript-aware rules, an `npm run lint` script, and CI integration. |
+| **Linting** | Done. ESLint with TypeScript-aware rules, `npm run lint`; CI runs lint on push/PR. |
 | **Devbox** | [Devbox](https://github.com/jetify-com/devbox) dev shell with Typst and Node.js; `devbox shell` gives a reproducible environment for `npm test` (including compile tests) without system-wide Typst. |
 
-**Suggested order from here:** Tests to TS → Linting (ESLint + CI) → bundler (Rollup or Vite; Rolldown when stable). Scripts and Lambda handler should continue to point at compiled output in `dist/`.
+**Suggested order from here:** bundler (Rollup or Vite; Rolldown when stable) for smaller Lambda artifacts. Scripts and Lambda handler continue to point at compiled output in `dist/`.
 
 ---
 

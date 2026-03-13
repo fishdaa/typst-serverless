@@ -18,59 +18,59 @@ const LAYER_DIR = join(dirname(fileURLToPath(import.meta.url)), "..", "src", "ad
 const OUT_ZIP = join(dirname(LAYER_DIR), "typst-layer.zip");
 
 async function run(cmd, args, opts = {}) {
-  return new Promise((resolve, reject) => {
-    const p = spawn(cmd, args, { stdio: "inherit", ...opts });
-    p.on("close", (code) => (code === 0 ? resolve() : reject(new Error(`${cmd} exited ${code}`))));
-  });
+    return new Promise((resolve, reject) => {
+        const p = spawn(cmd, args, { stdio: "inherit", ...opts });
+        p.on("close", (code) => (code === 0 ? resolve() : reject(new Error(`${cmd} exited ${code}`))));
+    });
 }
 
 async function main() {
-  console.log("Building Typst Lambda Layer...");
-  const workDir = join(LAYER_DIR, "build");
-  await rm(workDir, { recursive: true, force: true });
-  await mkdir(workDir, { recursive: true });
+    console.log("Building Typst Lambda Layer...");
+    const workDir = join(LAYER_DIR, "build");
+    await rm(workDir, { recursive: true, force: true });
+    await mkdir(workDir, { recursive: true });
 
-  const tarPath = join(workDir, "typst.tar.xz");
-  console.log("Downloading", URL);
-  const res = await fetch(URL);
-  if (!res.ok) throw new Error(`Download failed: ${res.status}`);
-  await pipeline(res.body, createWriteStream(tarPath));
+    const tarPath = join(workDir, "typst.tar.xz");
+    console.log("Downloading", URL);
+    const res = await fetch(URL);
+    if (!res.ok) throw new Error(`Download failed: ${res.status}`);
+    await pipeline(res.body, createWriteStream(tarPath));
 
-  const extractDir = join(workDir, "extract");
-  await mkdir(extractDir, { recursive: true });
-  await run("tar", ["-xJf", tarPath, "-C", extractDir]);
+    const extractDir = join(workDir, "extract");
+    await mkdir(extractDir, { recursive: true });
+    await run("tar", ["-xJf", tarPath, "-C", extractDir]);
 
-  const findTypstBin = async (dir) => {
-    const entries = await readdir(dir, { withFileTypes: true });
-    for (const e of entries) {
-      const p = join(dir, e.name);
-      if (e.isFile() && e.name === "typst") return p;
-      if (e.isDirectory() && !e.name.startsWith(".")) {
-        const found = await findTypstBin(p);
-        if (found) return found;
-      }
-    }
-    return null;
-  };
-  const binPath = await findTypstBin(extractDir);
-  if (!binPath) throw new Error("typst binary not found in archive");
+    const findTypstBin = async (dir) => {
+        const entries = await readdir(dir, { withFileTypes: true });
+        for (const e of entries) {
+            const p = join(dir, e.name);
+            if (e.isFile() && e.name === "typst") return p;
+            if (e.isDirectory() && !e.name.startsWith(".")) {
+                const found = await findTypstBin(p);
+                if (found) return found;
+            }
+        }
+        return null;
+    };
+    const binPath = await findTypstBin(extractDir);
+    if (!binPath) throw new Error("typst binary not found in archive");
 
-  const optBin = join(LAYER_DIR, "opt", "bin");
-  await mkdir(optBin, { recursive: true });
-  const dest = join(optBin, "typst");
-  await copyFile(binPath, dest);
-  await chmod(dest, 0o755);
+    const optBin = join(LAYER_DIR, "opt", "bin");
+    await mkdir(optBin, { recursive: true });
+    const dest = join(optBin, "typst");
+    await copyFile(binPath, dest);
+    await chmod(dest, 0o755);
 
-  await rm(workDir, { recursive: true, force: true });
+    await rm(workDir, { recursive: true, force: true });
 
-  console.log("Creating layer zip...");
-  const zipDir = dirname(OUT_ZIP);
-  await mkdir(zipDir, { recursive: true });
-  await run("zip", ["-r", OUT_ZIP, "opt"], { cwd: LAYER_DIR });
-  console.log("Layer built:", OUT_ZIP);
+    console.log("Creating layer zip...");
+    const zipDir = dirname(OUT_ZIP);
+    await mkdir(zipDir, { recursive: true });
+    await run("zip", ["-r", OUT_ZIP, "opt"], { cwd: LAYER_DIR });
+    console.log("Layer built:", OUT_ZIP);
 }
 
 main().catch((err) => {
-  console.error(err);
-  process.exit(1);
+    console.error(err);
+    process.exit(1);
 });

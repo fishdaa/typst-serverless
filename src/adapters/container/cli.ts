@@ -22,37 +22,37 @@ const stateDir = join(WORKSPACE, ".typst-state");
 let docId: string | undefined;
 
 async function main(): Promise<void> {
-  try {
-    docId = randomUUID();
-    if (STATE) {
-      const state = createFileState(stateDir);
-      await state.set(docId, { status: "pending", createdAt: Date.now() });
-      await state.update(docId, { status: "compiling" });
-    }
+    try {
+        docId = randomUUID();
+        if (STATE) {
+            const state = createFileState(stateDir);
+            await state.set(docId, { status: "pending", createdAt: Date.now() });
+            await state.update(docId, { status: "compiling" });
+        }
 
-    await compile(inputPath, outputPath);
+        await compile(inputPath, outputPath);
 
-    if (STATE && docId) {
-      const state = createFileState(stateDir);
-      await state.update(docId, { status: "completed", outputPath });
-    }
+        if (STATE && docId) {
+            const state = createFileState(stateDir);
+            await state.update(docId, { status: "completed", outputPath });
+        }
 
-    if (PIPE) {
-      const buf = readFileSync(outputPath);
-      process.stdout.write(buf);
-    }
+        if (PIPE) {
+            const buf = readFileSync(outputPath);
+            process.stdout.write(buf);
+        }
 
-    process.exit(0);
-  } catch (err) {
-    if (STATE && docId) {
-      try {
-        const state = createFileState(stateDir);
-        await state.update(docId, { status: "failed", error: String((err as Error).message) });
-      } catch {}
+        process.exit(0);
+    } catch (err) {
+        if (STATE && docId) {
+            try {
+                const state = createFileState(stateDir);
+                await state.update(docId, { status: "failed", error: String((err as Error).message) });
+            } catch {}
+        }
+        console.error((err as Error).message || err);
+        process.exit(1);
     }
-    console.error((err as Error).message || err);
-    process.exit(1);
-  }
 }
 
 main();

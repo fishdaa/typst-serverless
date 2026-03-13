@@ -1,0 +1,121 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Setup Typst
+        uses: typst-community/setup-typst@v3
+        with:
+          typst-version: "0.14.2"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Build
+        run: npm run build
+
+      - name: Run unit and integration tests
+        env:
+          TYPST_PATH: typst
+        run: npx vitest run test/core/ test/integration/lambda.test.ts test/integration/api.test.ts test/integration/webhooks-batch.test.ts
+
+  container:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Container integration tests
+        run: npx vitest run test/integration/container.test.ts
+
+  localstack:
+    runs-on: ubuntu-latest
+    services:
+      localstack:
+        image: localstack/localstack:4
+        ports:
+          - 4566:4566
+        env:
+          SERVICES: s3,dynamodb,lambda
+          DEBUG: 0
+          PERSISTENCE: 0
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Setup Typst
+        uses: typst-community/setup-typst@v3
+        with:
+          typst-version: "0.14.2"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Wait for LocalStack
+        run: |
+          for i in {1..30}; do
+            curl -s http://localhost:4566/_localstack/health | grep -q '"lambda"' && break
+            sleep 2
+          done
+
+      - name: Provision LocalStack (DynamoDB, S3)
+        env:
+          AWS_ACCESS_KEY_ID: test
+          AWS_SECRET_ACCESS_KEY: test
+          AWS_DEFAULT_REGION: us-east-1
+          AWS_ENDPOINT_URL: http://localhost:4566
+        run: ./scripts/localstack-setup.sh
+
+      - name: Run LocalStack E2E tests
+        env:
+          TYPST_PATH: typst
+          TYPST_AWS_ENDPOINT: http://localhost:4566
+          TYPST_OUTPUT_BUCKET: typst-output-test
+          TYPST_USE_IN_MEMORY_STATE: 1
+        run: npx vitest run test/integration/localstack.test.ts
+
+      - name: Run LocalStack E2E tests (async mode)
+        env:
+          TYPST_PATH: typst
+          TYPST_AWS_ENDPOINT: http://localhost:4566
+          TYPST_OUTPUT_BUCKET: typst-output-test
+          TYPST_STATE_TABLE: typst-documents
+        run: npx vitest run test/integration/localstack.test.ts
