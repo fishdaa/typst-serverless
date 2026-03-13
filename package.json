@@ -16,7 +16,8 @@
     "build:layer": "node scripts/build-typst-layer.js",
     "build:lambda": "npm run build && node scripts/build-lambda-package.js",
     "lint": "eslint .",
-    "deploy:lambda": "cd src/adapters/lambda-layer/pulumi && pulumi up"
+    "deploy:lambda": "cd src/adapters/lambda-layer/pulumi && pulumi up",
+    "deploy:ecr": "cd src/adapters/ecr/pulumi && npm install && pulumi up"
   },
   "keywords": [
     "typst",

@@ -1,0 +1,5 @@
+name: typst-serverless-ecr
+runtime: nodejs
+description: ECR repository for Typst Serverless container (ECS, EKS)
+config:
+  typst-serverless-ecr:imageTag: latest

@@ -30,6 +30,7 @@
 | | 2.3 Lambda handler — compile, status, retrieve; multipart; optional S3 | ✅ |
 | | 2.4 DynamoDB table — document_id PK, status, s3_key, timestamps | ✅ |
 | | 2.5 IAM role — DynamoDB, S3, CloudWatch Logs | ✅ |
+| | 2.6 ECR — Push container image to ECR for ECS/EKS | ✅ |
 | | 2.7 Docs — lambda branch, integrations with Lambda examples | ✅ |
 | | 2.8 One-click deploy — `npm run build:lambda` + `pulumi up` | ✅ |
 | | 2.9 LocalStack verification — E2E Lambda tests against LocalStack | ✅ |
@@ -46,7 +47,7 @@
 | | 4.5 Docs — api/, lambda/, integrations webhook & batch patterns | ✅ |
 | **Tooling** | TypeScript, Vitest, build (tsc), Tests to TS, ESLint (linting), Devbox (dev shell), CI | TypeScript+Vitest ✅; Tests to TS ✅; ESLint ✅; Devbox ✅; CI ✅ |
 
-Phase 4 complete. ECR (2.6) is deferred. Tooling complete.
+Phase 4 complete. Phase 2.6 (ECR) complete. Tooling complete.
 
 ### Proof (tests & example code)
 
@@ -65,6 +66,7 @@ Phase 4 complete. ECR (2.6) is deferred. Tooling complete.
 | **2.3** | `src/adapters/lambda-layer/handler.js` — actions: compile, status, retrieve; multipart response; S3 storage via `storeToS3`. |
 | **2.4** | Pulumi `aws.dynamodb.Table` hashKey `document_id`; handler uses `createDynamoDBState` with `status`, `s3_key`, timestamps. |
 | **2.5** | Pulumi: `aws.iam.Role`, `RolePolicyAttachment` (basic), `RolePolicy` (DynamoDB, S3 Get/Put). |
+| **2.6** | `src/adapters/ecr/pulumi/index.ts` — ECR repository, lifecycle policy; `scripts/push-ecr.sh` — build and push image; `docs/ecr/README.md` — ECS/EKS use cases. Run: `npm run deploy:ecr` then `./scripts/push-ecr.sh`. |
 | **2.7** | `docs/lambda/README.md` — deploy, invoke, S3; `docs/integrations/*.md` — Lambda SDK examples (e.g. `node-fastify.md` "Lambda (AWS SDK)" section). |
 | **2.8** | `package.json`: `build:lambda`, `deploy:lambda`; `docs/lambda/README.md` "One-click deploy" section with `npm run build:lambda` + `pulumi up`. |
 | **2.9** | `test/integration/localstack.test.ts` — sync mode (TYPST_USE_IN_MEMORY_STATE; lambda only, lambda+S3) and async mode (DynamoDB + S3: status, retrieve, workflow). `scripts/localstack-setup.sh`, `scripts/test-localstack.sh`. Run: `localstack start && ./scripts/localstack-setup.sh && npm run test:localstack`. |

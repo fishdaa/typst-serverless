@@ -8,7 +8,7 @@ Typst Serverless provides multiple ways to compile Typst documents to PDF. Choos
 | **Lambda** | Serverless on AWS; invoke via SDK. [→ docs/lambda/](lambda/README.md) |
 | **Integrations** | Node.js, Python, Go, Ruby. [→ docs/integrations/](integrations/README.md) |
 | **REST API** | HTTP endpoints via API Gateway. [→ docs/api/](api/README.md) |
-| **ECR / ECS / EKS** | Deploy container to AWS (optional). |
+| **ECR / ECS / EKS** | Deploy container to AWS (ECR, ECS Fargate, EKS). [→ docs/ecr/](ecr/README.md) |
 
 ## Container (Phase 1)
 
@@ -65,3 +65,22 @@ See [docs/container/](container/README.md) for volume, pipe, and state tracking 
    ```
 
 See [docs/lambda/](lambda/README.md) for compile, status, retrieve, S3, and LocalStack testing.
+
+## ECR / ECS / EKS (Phase 2.6)
+
+1. **Create** the ECR repository:
+   ```bash
+   npm run deploy:ecr
+   ```
+
+2. **Build and push** the container image:
+   ```bash
+   ./scripts/push-ecr.sh
+   ```
+
+3. **Use** the image in ECS or EKS — get the URI:
+   ```bash
+   cd src/adapters/ecr/pulumi && pulumi stack output imageUri
+   ```
+
+See [docs/ecr/](ecr/README.md) for ECS Fargate and EKS deployment examples.
