@@ -1,44 +1,27 @@
 #!/usr/bin/env node
 /**
  * Build Lambda deployment package.
- * Outputs to dist-lambda/ with handler, core, and node_modules.
+ * Uses Rollup to bundle handler + core + AWS SDK into a single file.
+ * Outputs to dist-lambda/ (no node_modules).
  */
-import { cp, mkdir, writeFile, rm } from "node:fs/promises";
+import { mkdir, writeFile, rm } from "node:fs/promises";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { execSync } from "node:child_process";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
-const srcDir = join(root, "dist"); // TypeScript compiles to dist/
 const outDir = join(root, "dist-lambda");
 
 async function main() {
     await rm(outDir, { recursive: true, force: true });
     await mkdir(outDir, { recursive: true });
 
-    // Copy compiled handler and core from dist/
-    await mkdir(join(outDir, "adapters/lambda-layer"), { recursive: true });
-    await mkdir(join(outDir, "core"), { recursive: true });
-    await cp(join(srcDir, "adapters/lambda-layer/index.js"), join(outDir, "adapters/lambda-layer/index.js"));
-    await cp(join(srcDir, "adapters/lambda-layer/handler.js"), join(outDir, "adapters/lambda-layer/handler.js"));
-    await cp(join(srcDir, "adapters/lambda-layer/api-handler.js"), join(outDir, "adapters/lambda-layer/api-handler.js"));
-    await cp(join(srcDir, "adapters/lambda-layer/resolve-input.js"), join(outDir, "adapters/lambda-layer/resolve-input.js"));
-    await cp(join(srcDir, "core/compile.js"), join(outDir, "core/compile.js"));
-    await cp(join(srcDir, "core/state.js"), join(outDir, "core/state.js"));
-    await cp(join(srcDir, "core/validate.js"), join(outDir, "core/validate.js"));
-    await cp(join(srcDir, "core/assets.js"), join(outDir, "core/assets.js"));
+    execSync("npx rollup -c rollup.config.lambda.js", { cwd: root, stdio: "inherit" });
 
-    // Minimal package.json for Lambda
     await writeFile(
         join(outDir, "package.json"),
         JSON.stringify({ type: "module" }, null, 2)
     );
-
-    // Install only AWS SDK deps
-    execSync("npm install @aws-sdk/client-dynamodb @aws-sdk/client-s3 @aws-sdk/lib-dynamodb @aws-sdk/s3-request-presigner --omit=dev", {
-        cwd: outDir,
-        stdio: "inherit",
-    });
 
     console.log("Lambda package built:", outDir);
 }

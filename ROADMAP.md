@@ -80,6 +80,7 @@ Phase 4 complete. ECR (2.6) is deferred. Tooling complete.
 | **4.4** | Handler: `action: "batch"`, `validateBatchEvent`; processes `documents` array; API handler `POST /batch`. |
 | **4.5** | `docs/api/README.md` — outputFormat, pdfStandard, webhook, POST /batch; `docs/lambda/README.md` Phase 4 section. |
 | **Tooling (CI)** | `.github/workflows/ci.yml` — lint, build, unit/integration tests (core, lambda, api, webhooks-batch), container tests (Docker), LocalStack E2E (sync + async). Uses setup-typst, LocalStack service. |
+| **Bundler** | `rollup.config.lambda.js` — bundles Lambda handler + core + AWS SDK; `npm run build:lambda` produces `dist-lambda/` with single bundle, no node_modules. |
 
 ---
 
@@ -92,11 +93,11 @@ Phase 4 complete. ECR (2.6) is deferred. Tooling complete.
 | **TypeScript** | `tsconfig.json` added; `src/` migrated to `.ts`; `npm run build` uses `tsc` to emit to `dist/`; `build-lambda-package.js` copies compiled output from `dist/`. |
 | **Vitest** | Node `node:test` runner replaced with Vitest; `vitest.config.ts` added; `npm test`, `npm run test:core`, `npm run test:integration`, `npm run test:lambda`, `npm run test:localstack` run the suite. |
 | **Tests to TS** | Done. All `test/` files are `.ts`; imports from `src/` with `.js` extension (ESM). |
-| **Build/bundler** | **Next:** keep `tsc` as the source of truth emitting to `dist/`; optionally introduce a bundler for Lambda (Rollup or Vite today; Rolldown later when stable) for smaller artifacts. |
+| **Build/bundler** | Done. Rollup bundles Lambda handler + core + AWS SDK into a single file; `dist-lambda/` has no `node_modules`. Smaller deploy artifact. |
 | **Linting** | Done. ESLint with TypeScript-aware rules, `npm run lint`; CI runs lint on push/PR. |
 | **Devbox** | [Devbox](https://github.com/jetify-com/devbox) dev shell with Typst and Node.js; `devbox shell` gives a reproducible environment for `npm test` (including compile tests) without system-wide Typst. |
 
-**Suggested order from here:** bundler (Rollup or Vite; Rolldown when stable) for smaller Lambda artifacts. Scripts and Lambda handler continue to point at compiled output in `dist/`.
+**Bundler (complete):** `rollup.config.lambda.js` + `build-lambda-package.js` use Rollup to produce a single `dist-lambda/adapters/lambda-layer/index.js` with handler, core, and AWS SDK. No `npm install` in `dist-lambda/`; smaller Lambda package.
 
 ---
 
