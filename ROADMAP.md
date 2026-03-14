@@ -55,29 +55,30 @@
 | | 5.5 TUI deploy — Interactive setup guides user through SQS, S3, API options | ✅ |
 | | 5.6 Docs — Update docs/lambda/, docs/api/, getting-started with SQS and batch status | ✅ |
 | | 5.7 dataJson — Support base64 + S3 ref `{ bucket, key }` for template data; resolve in resolve-input | ✅ |
-| **Phase 6** | 6.1 Param variations — mainTyp base64, mainTypS3; outputFormat pdf/svg/png; pdfStandard | Planned |
-| | 6.2 Asset variations — fonts base64 vs S3; assets base64 vs S3; formats (OTF, TTF, PNG, JPEG, SVG) | Planned |
-| | 6.3 dataJson variations — base64 vs S3 ref; Typst-compatible JSON | Planned |
+| **Phase 6** | 6.1 Param variations — mainTyp base64, mainTypS3; outputFormat pdf/svg/png; pdfStandard | ✅ |
+| | 6.2 Asset variations — fonts base64 vs S3; assets base64 vs S3; formats (OTF, TTF, PNG, JPEG, SVG) | ✅ |
+| | 6.3 dataJson variations — base64 vs S3 ref; Typst-compatible JSON | ✅ |
 | | 6.4 Batch variations — single, 2, 3+ docs; mixed content; verifiable outputs in test-output/ | Done |
 | | 6.5 Verifiable outputs — TYPST_TEST_KEEP_OUTPUT=1 writes to test-output/ for manual inspection | Done |
-| | 6.6 Cross-adapter matrix — core compile, container CLI, Lambda handler, API Gateway; same inputs | Planned |
+| | 6.6 Cross-adapter matrix — core compile, container CLI, Lambda handler, API Gateway; same inputs | ✅ |
+| **Chaos** | Retry (withRetry), circuit breaker, fault injection; S3 resolve-input resilience; `test/chaos/`, `docs/chaos.md` | ✅ |
 | **Tooling** | TypeScript, Vitest, build (tsc), Tests to TS, ESLint (linting), Devbox (dev shell), CI | TypeScript+Vitest ✅; Tests to TS ✅; ESLint ✅; Devbox ✅; CI ✅ |
 
-Phase 4 complete. Phase 2.6 (ECR) complete. Phase 5 complete. Phase 6 planned. Tooling complete.
+Phase 4 complete. Phase 2.6 (ECR) complete. Phase 5 complete. Phase 6 complete (6.1–6.6, chaos). Tooling complete.
 
 ### Proof (tests & example code)
 
 | Milestone | Proof |
 |-----------|-------|
-| **1.1** | Tests: `test/core/validate.test.js`, `test/core/state.test.js`, `test/core/compile.test.js`, `test/integration/container.test.js`. Fixtures: `test/fixtures/*.typ`. Run: `npm run test` (core), `npm run test:integration` (container). |
+| **1.1** | Tests: `test/core/validate.spec.js`, `test/core/state.spec.js`, `test/core/compile.spec.js`, `test/integration/container.spec.js`. Fixtures: `test/fixtures/*.typ`. Run: `npm run test` (core), `npm run test:integration` (container). |
 | **1.2** | `Dockerfile` — `FROM ghcr.io/typst/typst:0.14.2`. Run: `docker build -t typst-serverless .`. |
 | **1.3** | `docker-compose.yml` — profiles `volume`, `volume-state`, `pipe`, `volume-pipe`. Run: `docker compose --profile volume run typst`. |
 | **1.4** | Source: `src/core/compile.js`, `src/core/state.js`, `src/core/validate.js`; `src/adapters/container/cli.js`; `src/adapters/lambda-layer/handler.js`, `resolve-input.js`. |
-| **1.5** | `test/integration/container.test.js` — volume mode uses bind mount (`-v`); `docker-compose.yml` defines `typst-workspace` volume. |
+| **1.5** | `test/integration/container.spec.js` — volume mode uses bind mount (`-v`); `docker-compose.yml` defines `typst-workspace` volume. |
 | **1.6** | `src/adapters/container/` (cli.js, entrypoint.sh, pulumi/); `src/adapters/lambda-layer/` (handler.js, resolve-input.js, pulumi/). |
 | **1.7** | `README.md` — Quick Start, build/run commands, env vars, Docker Compose. |
 | **1.8** | `docs/getting-started.md`; `docs/container/README.md`; `docs/integrations/` (node-express.md, node-fastify.md, python-flask.md, python-fastapi.md, go.md, php.md, ruby.md). |
-| **2.1** | `test/integration/lambda.test.js` — validates payload size, event schema, S3 key path traversal, documentId. Run: `npm run test:lambda`. |
+| **2.1** | `test/integration/lambda.spec.js` — validates payload size, event schema, S3 key path traversal, documentId. Run: `npm run test:lambda`. |
 | **2.2** | `src/adapters/lambda-layer/pulumi/index.ts` — Lambda, DynamoDB table, S3 buckets, lifecycle rules. |
 | **2.3** | `src/adapters/lambda-layer/handler.js` — actions: compile, status, retrieve; multipart response; S3 storage via `storeToS3`. |
 | **2.4** | Pulumi `aws.dynamodb.Table` hashKey `document_id`; handler uses `createDynamoDBState` with `status`, `s3_key`, timestamps. |
@@ -85,14 +86,14 @@ Phase 4 complete. Phase 2.6 (ECR) complete. Phase 5 complete. Phase 6 planned. T
 | **2.6** | `src/adapters/ecr/pulumi/index.ts` — ECR repository, lifecycle policy; `scripts/push-ecr.sh` — build and push image; `docs/ecr/README.md` — ECS/EKS use cases. Run: `npm run deploy:ecr` then `./scripts/push-ecr.sh`. |
 | **2.7** | `docs/lambda/README.md` — deploy, invoke, S3; `docs/integrations/*.md` — Lambda SDK examples (e.g. `node-fastify.md` "Lambda (AWS SDK)" section). |
 | **2.8** | `package.json`: `build:lambda`, `deploy:lambda`; `docs/lambda/README.md` "One-click deploy" section with `npm run build:lambda` + `pulumi up`. |
-| **2.9** | `test/integration/localstack.test.ts` — sync mode (TYPST_USE_IN_MEMORY_STATE; lambda only, lambda+S3) and async mode (DynamoDB + S3: status, retrieve, workflow). `scripts/localstack-setup.sh`, `scripts/test-localstack.sh`. Run: `localstack start && ./scripts/localstack-setup.sh && npm run test:localstack`. |
+| **2.9** | `test/integration/localstack.spec.ts` — sync mode (TYPST_USE_IN_MEMORY_STATE; lambda only, lambda+S3) and async mode (DynamoDB + S3: status, retrieve, workflow). `scripts/localstack-setup.sh`, `scripts/test-localstack.sh`. Run: `localstack start && ./scripts/localstack-setup.sh && npm run test:localstack`. |
 | **2.10** | `.github/workflows/publish-lambda-layer.yml` — publishes layer to multiple regions; `docs/lambda/README.md` "Publish Layer to Multiple Regions (CI)" section. |
-| **3.1** | `test/core/assets.test.js`, `test/integration/api.test.js` — asset validation, REST event parsing, 10MB limit. |
+| **3.1** | `test/core/assets.spec.js`, `test/integration/api.spec.js` — asset validation, REST event parsing, 10MB limit. |
 | **3.2** | `src/core/assets.js` — `validateAssetKey`, `validateAssetRef`, `validateAssets`; `resolve-input.js` — fonts/assets; handler validates before compile. |
 | **3.3** | `src/adapters/lambda-layer/api-handler.js`, `index.js`; Pulumi: API Gateway HTTP API, routes POST /compile, GET /documents/{id}, GET /documents/{id}/pdf. |
 | **3.4** | Handler: `outputS3: { bucket, keyPrefix }`; Pulumi `customerOutputBuckets` config for IAM. |
 | **3.5** | `docs/api/README.md`, `docs/api/auth.md`; `docs/getting-started.md`, `docs/lambda/README.md`, `docs/integrations/node-fastify.md` updated. |
-| **4.1** | `test/integration/webhooks-batch.test.js` — output variants, webhooks, batch validation. Run: `npm run test:integration`. |
+| **4.1** | `test/integration/webhooks-batch.spec.js` — output variants, webhooks, batch validation. Run: `npm run test:integration`. |
 | **4.2** | `src/core/compile.js` — `format` (pdf/svg/png), `pdfStandard` (a-2b, a-3b, etc.); handler passes through `outputFormat`, `pdfStandard`. |
 | **4.3** | Handler: `webhook.url` validation; `invokeWebhook()` POSTs on completion/failure; `validateWebhookUrl` (HTTPS only). |
 | **4.4** | Handler: `action: "batch"`, `validateBatchEvent`; processes `documents` array; API handler `POST /batch`. |
@@ -104,12 +105,12 @@ Phase 4 complete. Phase 2.6 (ECR) complete. Phase 5 complete. Phase 6 planned. T
 | **5.5** | `scripts/deploy-tui.ts` or interactive Pulumi config prompts for SQS, S3, API options. |
 | **5.6** | `docs/lambda/README.md`, `docs/api/README.md`, `docs/getting-started.md` — SQS, batch status, batch disable rules. |
 | **5.7** | Handler, resolve-input: `dataJson` base64 or S3 `{ bucket, key }`; write data.json to workDir for Typst. |
-| **6.1** | `test/core/param-variations.test.ts` — mainTyp/mainTypS3, outputFormat, pdfStandard. |
-| **6.2** | Expand `test/core/assets.test.ts` — fonts/assets base64 vs S3; OTF, TTF, PNG, JPEG, SVG. |
-| **6.3** | dataJson tests — base64, S3 ref; Typst fixture using `context read("data.json")`. |
+| **6.1** | `test/core/param-variations.spec.ts` — outputFormat pdf/svg/png; pdfStandard a-2b, a-3b, 1.4, 1.5. |
+| **6.2** | Expand `test/core/assets.spec.ts` — fonts/assets base64 vs S3; OTF, TTF, PNG, JPEG, SVG. |
+| **6.3** | dataJson tests — base64, S3 ref; Typst fixture using `json("data.json")`; `test/core/datajson-variations.spec.ts`. |
 | **6.4** | Batch variation tests — single, 2, 3 docs; mixed content; `pdf` in batch results for test-output/. |
 | **6.5** | `TYPST_TEST_KEEP_OUTPUT=1` / `npm run test:keep-output` — outputs to `test-output/{core-compile,output-variants,batch}/`. |
-| **6.6** | Cross-adapter fixtures; `test/integration/lambda.test.ts`, `api.test.ts` — same payloads across adapters. |
+| **6.6** | Cross-adapter fixtures; `test/fixtures/shared-payloads.ts`; `test/integration/cross-adapter.spec.ts` — same payloads, equivalent outputs (core, Lambda, API). |
 | **Tooling (CI)** | `.github/workflows/ci.yml` — lint, build, unit/integration tests (core, lambda, api, webhooks-batch), container tests (Docker), LocalStack E2E (sync + async). Uses setup-typst, LocalStack service. |
 | **Bundler** | `rollup.config.lambda.js` — bundles Lambda handler + core + AWS SDK; `npm run build:lambda` produces `dist-lambda/` with single bundle, no node_modules. |
 
@@ -280,12 +281,12 @@ Getting started flow: user selects use case (container, Lambda, REST API, ECR) �
 | **Assets** | base64 vs S3 ref; PNG, JPEG, GIF, WebP, SVG (images); multiple assets |
 | **dataJson** | base64 vs S3 ref; empty vs minimal vs nested JSON |
 | **Batch** | Single doc, 2 docs, 3+ docs; mixed content; include `pdf` in sequential batch results for verification |
-| **Core** | `test/core/compile.test.ts` — each output format, pdfStandard; `test/core/assets.test.ts` — font/asset validation |
+| **Core** | `test/core/compile.spec.ts` — each output format, pdfStandard; `test/core/assets.spec.ts` — font/asset validation |
 | **Container** | Volume mode with fonts/assets in workspace; pipe mode |
 | **Lambda** | Handler with mainTyp, mainTypS3, fonts (base64/S3), assets (base64/S3), dataJson; LocalStack E2E |
 | **API** | REST POST /compile with all param combos; multipart; validation |
 
-**Deliverables:** `test/core/param-variations.test.ts`, expand `test/integration/lambda.test.ts` and `test/integration/api.test.ts`, cross-adapter fixtures.
+**Deliverables:** `test/core/param-variations.spec.ts`, expand `test/integration/lambda.spec.ts` and `test/integration/api.spec.ts`, cross-adapter fixtures.
 
 ---
 
@@ -496,7 +497,7 @@ Client (AWS SDK) → Lambda (Node.js + Layer) → DynamoDB (state)
 
 | Adapter | Tests |
 |---------|-------|
-| **Core** | `test/core/compile.test.ts` — each format, pdfStandard; `test/core/assets.test.ts` — font/asset validation |
+| **Core** | `test/core/compile.spec.ts` — each format, pdfStandard; `test/core/assets.spec.ts` — font/asset validation |
 | **Container** | Volume mode with fonts/assets; pipe mode; state mode |
 | **Lambda** | Handler: mainTyp, mainTypS3, fonts (base64/S3), assets (base64/S3), dataJson; LocalStack E2E |
 | **API** | REST POST /compile with param combos; multipart; validation |

@@ -91,7 +91,7 @@ Invoke via AWS SDK — see [docs/lambda/](docs/lambda/README.md) for compile, st
 
 ```
 ├── src/
-│   ├── core/              # Compile logic, state interface, validation
+│   ├── core/              # Compile logic, state interface, validation, chaos
 │   └── adapters/
 │       ├── container/     # Docker entrypoint, volume handling
 │       └── lambda-layer/  # Lambda handler, Pulumi IaC
@@ -103,6 +103,8 @@ Invoke via AWS SDK — see [docs/lambda/](docs/lambda/README.md) for compile, st
 ```
 
 ## Development & Tests
+
+Use the `@/` path alias for imports from `src/` (e.g. `import { compile } from "@/core/compile.js"`). Configured in `tsconfig.json`, resolved by Vitest for tests and rewritten to relative paths for the build via `tsc-alias`.
 
 - **Install dependencies**:
 
@@ -150,5 +152,6 @@ If you use [Devbox](https://github.com/jetify-com/devbox), `devbox shell` provid
 ## Documentation
 
 - [Getting Started](docs/getting-started.md)
+- [Chaos Engineering](docs/chaos.md) — Retry, circuit breaker, fault injection
 - [Container Use Cases](docs/container/README.md) — volume, pipe, state
 - [Integrations](docs/integrations/README.md) — Node.js (Express, Fastify), Python (Flask, FastAPI), Go, PHP, Ruby

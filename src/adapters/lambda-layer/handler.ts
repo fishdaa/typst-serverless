@@ -2,8 +2,8 @@
  * Lambda handler for Typst Serverless.
  * Actions: compile, status, retrieve, batch
  */
-import { compile } from "../../core/compile.js";
-import { createDynamoDBState, createInMemoryState } from "../../core/state.js";
+import { compile } from "@/core/compile.js";
+import { createDynamoDBState, createInMemoryState } from "@/core/state.js";
 import {
     validatePayloadSize,
     validateCompileEvent,
@@ -13,9 +13,9 @@ import {
     validateBatchEvent,
     validateDocumentId,
     validateDataJson,
-} from "../../core/validate.js";
-import { validateAssets } from "../../core/assets.js";
-import { resolveMainTyp } from "./resolve-input.js";
+} from "@/core/validate.js";
+import { validateAssets } from "@/core/assets.js";
+import { resolveMainTyp } from "@/adapters/lambda-layer/resolve-input.js";
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocumentClient, QueryCommand } from "@aws-sdk/lib-dynamodb";
 import { S3Client, PutObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";

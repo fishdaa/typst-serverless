@@ -1,12 +1,15 @@
 /**
  * Resolve main.typ, fonts, and assets from event (base64 or S3).
+ * Uses withRetry for S3 operations (chaos engineering resilience).
  */
-import { GetObjectCommand } from "@aws-sdk/client-s3";
+import { Buffer } from "node:buffer";
+import { GetObjectCommand, type GetObjectCommandOutput } from "@aws-sdk/client-s3";
 import { writeFile, mkdir } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { tmpdir } from "node:os";
 import { randomUUID } from "node:crypto";
 import type { S3Client } from "@aws-sdk/client-s3";
+import { withRetry } from "@/core/chaos.js";
 
 interface ContentSource {
   bucket?: string;
@@ -28,8 +31,8 @@ async function resolveFile(
 ): Promise<void> {
     await mkdir(dirname(destPath), { recursive: true });
     if (contentSource.bucket && contentSource.key) {
-        const { Body } = await s3Client.send(
-            new GetObjectCommand({ Bucket: contentSource.bucket, Key: contentSource.key })
+        const { Body } = await withRetry<GetObjectCommandOutput>(() =>
+            s3Client.send(new GetObjectCommand({ Bucket: contentSource.bucket!, Key: contentSource.key! }))
         );
         const chunks: Uint8Array[] = [];
         if (Body) {
@@ -84,8 +87,8 @@ async function resolveDataJson(
     }
     if (typeof dataJson === "object" && dataJson !== null && "bucket" in dataJson && "key" in dataJson) {
         const ref = dataJson as { bucket: string; key: string };
-        const { Body } = await s3Client.send(
-            new GetObjectCommand({ Bucket: ref.bucket, Key: ref.key })
+        const { Body } = await withRetry<GetObjectCommandOutput>(() =>
+            s3Client.send(new GetObjectCommand({ Bucket: ref.bucket, Key: ref.key }))
         );
         const content = Body ? await streamToString(Body as AsyncIterable<Uint8Array>) : "{}";
         await writeFile(dataPath, content, "utf-8");
@@ -114,8 +117,8 @@ export async function resolveMainTyp(
     if (event.mainTypS3 && typeof event.mainTypS3 === "object") {
         const ref = event.mainTypS3 as { bucket: string; key: string };
         const { bucket, key } = ref;
-        const { Body } = await s3Client.send(
-            new GetObjectCommand({ Bucket: bucket, Key: key })
+        const { Body } = await withRetry<GetObjectCommandOutput>(() =>
+            s3Client.send(new GetObjectCommand({ Bucket: bucket, Key: key }))
         );
         const content = Body ? await streamToString(Body as AsyncIterable<Uint8Array>) : "";
         const mainPath = join(workDir, "main.typ");

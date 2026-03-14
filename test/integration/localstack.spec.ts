@@ -12,7 +12,7 @@
 import { describe, it } from "vitest";
 import assert from "node:assert";
 import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
-import { handler } from "../../src/adapters/lambda-layer/handler.js";
+import { handler } from "@/adapters/lambda-layer/handler.js";
 
 const ENDPOINT = process.env.TYPST_AWS_ENDPOINT || process.env.AWS_ENDPOINT_URL || "http://localhost:4566";
 const INPUT_BUCKET = "typst-input-test";

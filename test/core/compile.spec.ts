@@ -6,7 +6,7 @@
  */
 import { describe, it } from "vitest";
 import assert from "node:assert";
-import { compile } from "../../src/core/compile.js";
+import { compile } from "@/core/compile.js";
 import { join } from "node:path";
 import { readFileSync, existsSync, rmSync } from "node:fs";
 import { getOutputPathAndDir, shouldKeepOutput } from "../test-output-helper.js";

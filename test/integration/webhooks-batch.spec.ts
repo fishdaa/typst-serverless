@@ -4,18 +4,18 @@
  */
 import { describe, it } from "vitest";
 import assert from "node:assert";
-import { handler } from "../../src/adapters/lambda-layer/handler.js";
-import { compile } from "../../src/core/compile.js";
+import { handler } from "@/adapters/lambda-layer/handler.js";
+import { compile } from "@/core/compile.js";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const __testDir = dirname(fileURLToPath(import.meta.url));
 import { rmSync, readFileSync, existsSync, writeFileSync } from "node:fs";
 import { getOutputPathAndDir, shouldKeepOutput } from "../test-output-helper.js";
+import { CROSS_ADAPTER_B64 } from "../fixtures/shared-payloads.js";
 
 const FIXTURES = join(__testDir, "../fixtures");
-const FIXTURE_TYP = "#set page(width: 100pt)\nHello!";
-const FIXTURE_B64 = Buffer.from(FIXTURE_TYP, "utf-8").toString("base64");
+const FIXTURE_B64 = CROSS_ADAPTER_B64;
 
 describe("output variants", () => {
     it("compiles to PDF with --pdf-standard a-2b when pdfStandard given", async () => {

@@ -13,7 +13,8 @@ import {
     validateStatusEvent,
     validateWebhookUrl,
     validateBatchEvent,
-} from "../../src/core/validate.js";
+    validateDataJson,
+} from "@/core/validate.js";
 
 describe("core/validate", () => {
     describe("validatePayloadSize", () => {
@@ -162,6 +163,34 @@ describe("core/validate", () => {
 
         it("rejects empty documents array", () => {
             assert.strictEqual(validateBatchEvent({ documents: [] }).valid, false);
+        });
+    });
+
+    describe("validateDataJson", () => {
+        it("accepts undefined or null", () => {
+            assert.strictEqual(validateDataJson(undefined).valid, true);
+            assert.strictEqual(validateDataJson(null).valid, true);
+        });
+
+        it("accepts base64 string", () => {
+            assert.strictEqual(validateDataJson("eyJoZWxsbyI6IndvcmxkIn0=").valid, true);
+        });
+
+        it("accepts S3 ref { bucket, key }", () => {
+            assert.strictEqual(
+                validateDataJson({ bucket: "b", key: "data/data.json" }).valid,
+                true
+            );
+        });
+
+        it("rejects invalid S3 ref", () => {
+            assert.strictEqual(validateDataJson({ bucket: "b" }).valid, false);
+            assert.strictEqual(validateDataJson({ key: "x.json" }).valid, false);
+        });
+
+        it("rejects array or non-object", () => {
+            assert.strictEqual(validateDataJson([]).valid, false);
+            assert.strictEqual(validateDataJson(123).valid, false);
         });
     });
 });

@@ -3,7 +3,7 @@
  * Transforms REST requests to Lambda events and returns HTTP responses.
  */
 import { handler as lambdaHandler } from "./handler.js";
-import { validateRestPayloadSize, validateDocumentId } from "../../core/validate.js";
+import { validateRestPayloadSize, validateDocumentId } from "@/core/validate.js";
 
 function httpResponse(statusCode: number, body: object | string, headers: Record<string, string> = {}) {
     return {

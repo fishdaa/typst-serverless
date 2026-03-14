@@ -5,8 +5,8 @@
  */
 import { join } from "node:path";
 import { readFileSync } from "node:fs";
-import { compile } from "../../core/compile.js";
-import { createFileState } from "../../core/state.js";
+import { compile } from "@/core/compile.js";
+import { createFileState } from "@/core/state.js";
 import { randomUUID } from "node:crypto";
 
 const WORKSPACE = process.env.TYPST_WORKSPACE || "/workspace";

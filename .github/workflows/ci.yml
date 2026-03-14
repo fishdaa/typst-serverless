@@ -35,7 +35,7 @@ jobs:
       - name: Run unit and integration tests
         env:
           TYPST_PATH: typst
-        run: npx vitest run test/core/ test/integration/lambda.test.ts test/integration/api.test.ts test/integration/webhooks-batch.test.ts
+        run: npx vitest run test/core/ test/integration/lambda.spec.ts test/integration/api.spec.ts test/integration/webhooks-batch.spec.ts test/integration/cross-adapter.spec.ts
 
   container:
     runs-on: ubuntu-latest
@@ -55,7 +55,7 @@ jobs:
         run: npm run build
 
       - name: Container integration tests
-        run: npx vitest run test/integration/container.test.ts
+        run: npx vitest run test/integration/container.spec.ts
 
   localstack:
     runs-on: ubuntu-latest
@@ -110,7 +110,7 @@ jobs:
           TYPST_AWS_ENDPOINT: http://localhost:4566
           TYPST_OUTPUT_BUCKET: typst-output-test
           TYPST_USE_IN_MEMORY_STATE: 1
-        run: npx vitest run test/integration/localstack.test.ts
+        run: npx vitest run test/integration/localstack.spec.ts
 
       - name: Run LocalStack E2E tests (async mode)
         env:
@@ -118,4 +118,4 @@ jobs:
           TYPST_AWS_ENDPOINT: http://localhost:4566
           TYPST_OUTPUT_BUCKET: typst-output-test
           TYPST_STATE_TABLE: typst-documents
-        run: npx vitest run test/integration/localstack.test.ts
+        run: npx vitest run test/integration/localstack.spec.ts

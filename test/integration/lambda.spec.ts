@@ -5,10 +5,10 @@
  */
 import { describe, it } from "vitest";
 import assert from "node:assert";
-import { handler } from "../../src/adapters/lambda-layer/handler.js";
+import { handler } from "@/adapters/lambda-layer/handler.js";
+import { CROSS_ADAPTER_B64 } from "../fixtures/shared-payloads.js";
 
-const FIXTURE_TYP = "#set page(width: 100pt)\nHello, Lambda!";
-const FIXTURE_B64 = Buffer.from(FIXTURE_TYP, "utf-8").toString("base64");
+const FIXTURE_B64 = CROSS_ADAPTER_B64;
 
 describe("lambda integration", () => {
     describe("validation (no AWS)", () => {

@@ -4,7 +4,7 @@
  */
 import { describe, it } from "vitest";
 import assert from "node:assert";
-import { createInMemoryState, createFileState } from "../../src/core/state.js";
+import { createInMemoryState, createFileState } from "@/core/state.js";
 import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";

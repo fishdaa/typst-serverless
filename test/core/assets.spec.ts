@@ -9,7 +9,7 @@ import {
     validateAssets,
     ALLOWED_IMAGE_EXTENSIONS,
     ALLOWED_FONT_EXTENSIONS,
-} from "../../src/core/assets.js";
+} from "@/core/assets.js";
 
 describe("assets validation", () => {
     describe("validateAssetKey", () => {
@@ -115,6 +115,41 @@ describe("assets validation", () => {
             const r = validateAssets([{ name: "x.png" }], "image");
             assert.strictEqual(r.valid, false);
             assert(r.error?.includes("bucket+key") || r.error?.includes("base64"));
+        });
+
+        it("accepts multiple image formats (PNG, JPEG, GIF, WebP, SVG)", () => {
+            const formats = [".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg"];
+            for (const ext of formats) {
+                const r = validateAssets(
+                    [{ name: `image${ext}`, base64: "iVBORw0KGgo=" }],
+                    "image"
+                );
+                assert.strictEqual(r.valid, true, `expected ${ext} to be valid`);
+            }
+        });
+
+        it("accepts font formats (OTF, TTF, TTC)", () => {
+            const formats = [".otf", ".ttf", ".ttc"];
+            for (const ext of formats) {
+                const r = validateAssets(
+                    [{ name: `font${ext}`, base64: "dGVzdA==" }],
+                    "font"
+                );
+                assert.strictEqual(r.valid, true, `expected ${ext} to be valid`);
+            }
+        });
+
+        it("accepts assets with S3 ref for image and font", () => {
+            const img = validateAssets(
+                [{ name: "logo.png", bucket: "b", key: "assets/logo.png" }],
+                "image"
+            );
+            const font = validateAssets(
+                [{ name: "custom.otf", bucket: "b", key: "fonts/custom.otf" }],
+                "font"
+            );
+            assert.strictEqual(img.valid, true);
+            assert.strictEqual(font.valid, true);
         });
     });
 });

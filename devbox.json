@@ -13,7 +13,7 @@
     "scripts": {
       "test": [
         "npm run build",
-        "npx vitest run",
+        "env TYPST_TEST_KEEP_OUTPUT=1 npx vitest run",
         "./scripts/test-full.sh",
         "./scripts/test-localstack.sh"
       ]
