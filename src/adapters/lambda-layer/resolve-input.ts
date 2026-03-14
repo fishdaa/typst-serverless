@@ -70,6 +70,30 @@ export interface ResolveResult {
   mainPath: string;
 }
 
+async function resolveDataJson(
+    dataJson: unknown,
+    workDir: string,
+    s3Client: S3Client
+): Promise<void> {
+    if (!dataJson) return;
+    const dataPath = join(workDir, "data.json");
+    if (typeof dataJson === "string") {
+        const content = Buffer.from(dataJson, "base64").toString("utf-8");
+        await writeFile(dataPath, content, "utf-8");
+        return;
+    }
+    if (typeof dataJson === "object" && dataJson !== null && "bucket" in dataJson && "key" in dataJson) {
+        const ref = dataJson as { bucket: string; key: string };
+        const { Body } = await s3Client.send(
+            new GetObjectCommand({ Bucket: ref.bucket, Key: ref.key })
+        );
+        const content = Body ? await streamToString(Body as AsyncIterable<Uint8Array>) : "{}";
+        await writeFile(dataPath, content, "utf-8");
+        return;
+    }
+    throw new Error("dataJson must be base64 string or { bucket, key }");
+}
+
 export async function resolveMainTyp(
     event: Record<string, unknown>,
     s3Client: S3Client
@@ -83,6 +107,7 @@ export async function resolveMainTyp(
         await writeFile(mainPath, content, "utf-8");
         await resolveFontsAndAssets((event.fonts as AssetItem[]) || [], workDir, s3Client);
         await resolveFontsAndAssets((event.assets as AssetItem[]) || [], workDir, s3Client);
+        await resolveDataJson(event.dataJson, workDir, s3Client);
         return { workDir, mainPath };
     }
 
@@ -97,6 +122,7 @@ export async function resolveMainTyp(
         await writeFile(mainPath, content, "utf-8");
         await resolveFontsAndAssets((event.fonts as AssetItem[]) || [], workDir, s3Client);
         await resolveFontsAndAssets((event.assets as AssetItem[]) || [], workDir, s3Client);
+        await resolveDataJson(event.dataJson, workDir, s3Client);
         return { workDir, mainPath };
     }
 

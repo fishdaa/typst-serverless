@@ -9,7 +9,8 @@ HTTP endpoints for Typst compilation via API Gateway. Deploy with `enableApiGate
 | Method | Path | Description |
 |--------|------|-------------|
 | POST | `/compile` | Compile .typ source to PDF, SVG, or PNG |
-| POST | `/batch` | Compile multiple documents |
+| POST | `/batch` | Compile multiple documents (sequential or via SQS when enabled) |
+| GET | `/batches/{id}` | Get batch status — per-item status and S3 links (Phase 5, requires SQS) |
 | GET | `/documents/{id}` | Get document status |
 | GET | `/documents/{id}/pdf` | Get presigned URL to download PDF (when stored in S3) |
 
@@ -42,7 +43,7 @@ pulumi stack output apiUrl
 - `outputFormat` — Output format: `"pdf"` (default), `"svg"`, or `"png"`
 - `pdfStandard` — PDF standard for PDF output: `"a-2b"`, `"a-3b"`, `"1.4"`, `"1.5"`, etc.
 - `webhook` — `{ "url": "https://..." }` — POST completion status and s3Url/pdf to your endpoint
-- `dataJson` — Base64-encoded JSON for template data
+- `dataJson` — Base64-encoded JSON or `{ "bucket": "...", "key": "..." }` for template data (Phase 5)
 
 **Response (200):**
 - `storeToS3: true` → `{ documentId, status: "completed", s3Url }`
@@ -56,6 +57,11 @@ pulumi stack output apiUrl
 
 Compile multiple documents in one request.
 
+**Batch modes:**
+- **Sequential (default):** When SQS is disabled, processes documents one-by-one in the same Lambda. Response: `{ results: [...] }`.
+- **Via SQS (Phase 5):** When SQS is enabled and S3 storage is enabled, enqueues 1 message per document. Response: `{ batchId, documentIds }`. Poll `GET /batches/{batchId}` for status.
+- **Batch disabled:** When SQS is enabled but S3 is not, or when using sync path, batch returns an error.
+
 **Request:** `Content-Type: application/json`
 
 ```json
@@ -67,9 +73,20 @@ Compile multiple documents in one request.
 }
 ```
 
-**Response (200):** `{ "results": [ { "documentId", "status", "s3Url?", "error?" }, ... ] }`
+**Response (200):**
+- Sequential: `{ "results": [ { "documentId", "status", "s3Url?", "error?" }, ... ] }`
+- SQS: `{ "batchId", "documentIds": ["...", "..."] }`
 
-Each item in `documents` supports the same fields as POST /compile (fonts, assets, outputFormat, webhook, etc.).
+Each item in `documents` supports the same fields as POST /compile (fonts, assets, outputFormat, webhook, dataJson, etc.).
+
+## GET /batches/{id}
+
+Returns batch status (Phase 5, requires SQS enabled).
+
+**Response (200):** `{ "batchId", "results": [ { "documentId", "status", "s3Url?", "error?" }, ... ] }`
+
+- `status`: `"pending"`, `"compiling"`, `"completed"`, or `"failed"`
+- `s3Url`: Presigned URL for completed items (when stored in S3)
 
 ## GET /documents/{id}
 

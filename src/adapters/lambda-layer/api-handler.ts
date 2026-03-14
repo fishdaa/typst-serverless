@@ -68,6 +68,9 @@ export async function handler(event: Record<string, unknown>): Promise<{
         return await handleBatch(body);
     }
     if (method === "GET" && id) {
+        if (path?.startsWith("/batches/")) {
+            return await handleBatchStatus(id);
+        }
         if (path?.endsWith("/pdf")) {
             return await handleRetrieve(id);
         }
@@ -120,6 +123,14 @@ async function handleRetrieve(id: string) {
         return httpResponse(400, { error: idCheck.error });
     }
     const res = await lambdaHandler({ action: "retrieve", documentId: id } as Parameters<typeof lambdaHandler>[0], {});
+    return toHttpResponse(res);
+}
+
+async function handleBatchStatus(batchId: string) {
+    const res = await lambdaHandler({
+        action: "batchstatus",
+        batchId,
+    } as Parameters<typeof lambdaHandler>[0], {});
     return toHttpResponse(res);
 }
 

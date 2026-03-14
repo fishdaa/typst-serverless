@@ -8,6 +8,8 @@
 **Phase 4:** Output variants, webhooks, and batch jobs.  
 **Phase 5:** Optional SQS queuing, parallelized batch (1 doc per Lambda), batch status endpoint, deploy TUI.
 
+**Phase 6:** Test coverage expansion — param/asset/font/dataJson/output variations across core and adapters (container, Lambda, API).
+
 **Architecture principle:** Core codebase is output-agnostic. Same compilation logic runs as containerized (Docker), Lambda (Node.js + Typst Layer), or via ECR (ECS, EKS).
 
 **One-click deploy:** Single-command deployment to AWS (Lambda, DynamoDB, S3, optionally API Gateway) with sensible defaults.
@@ -46,16 +48,22 @@
 | | 4.3 Webhooks — POST completion/failure to user URL | ✅ |
 | | 4.4 Batch — Multi-document compile flows | ✅ |
 | | 4.5 Docs — api/, lambda/, integrations webhook & batch patterns | ✅ |
-| **Phase 5** | 5.1 SQS infrastructure (optional) — Pulumi: SQS queue, DLQ, event source mapping; config flag `enableSqs` | Planned |
-| | 5.2 API: enqueue for batch — When SQS enabled, `POST /batch` enqueues messages, returns `batchId`; batch disabled for sync or no-S3 | Planned |
-| | 5.3 Lambda: SQS trigger handler — Process single compile per message; write `batchId` to DynamoDB per document | Planned |
-| | 5.4 Batch status — `GET /batches/{batchId}` returns per-item status and S3 links for completed items | Planned |
-| | 5.5 TUI deploy — Interactive setup guides user through SQS, S3, API options | Planned |
-| | 5.6 Docs — Update docs/lambda/, docs/api/, getting-started with SQS and batch status | Planned |
-| | 5.7 dataJson — Support base64 + S3 ref `{ bucket, key }` for template data; resolve in resolve-input | Planned |
+| **Phase 5** | 5.1 SQS infrastructure (optional) — Pulumi: SQS queue, DLQ, event source mapping; config flag `enableSqs` | ✅ |
+| | 5.2 API: enqueue for batch — When SQS enabled, `POST /batch` enqueues messages, returns `batchId`; batch disabled for sync or no-S3 | ✅ |
+| | 5.3 Lambda: SQS trigger handler — Process single compile per message; write `batchId` to DynamoDB per document | ✅ |
+| | 5.4 Batch status — `GET /batches/{batchId}` returns per-item status and S3 links for completed items | ✅ |
+| | 5.5 TUI deploy — Interactive setup guides user through SQS, S3, API options | ✅ |
+| | 5.6 Docs — Update docs/lambda/, docs/api/, getting-started with SQS and batch status | ✅ |
+| | 5.7 dataJson — Support base64 + S3 ref `{ bucket, key }` for template data; resolve in resolve-input | ✅ |
+| **Phase 6** | 6.1 Param variations — mainTyp base64, mainTypS3; outputFormat pdf/svg/png; pdfStandard | Planned |
+| | 6.2 Asset variations — fonts base64 vs S3; assets base64 vs S3; formats (OTF, TTF, PNG, JPEG, SVG) | Planned |
+| | 6.3 dataJson variations — base64 vs S3 ref; Typst-compatible JSON | Planned |
+| | 6.4 Batch variations — single, 2, 3+ docs; mixed content; verifiable outputs in test-output/ | Done |
+| | 6.5 Verifiable outputs — TYPST_TEST_KEEP_OUTPUT=1 writes to test-output/ for manual inspection | Done |
+| | 6.6 Cross-adapter matrix — core compile, container CLI, Lambda handler, API Gateway; same inputs | Planned |
 | **Tooling** | TypeScript, Vitest, build (tsc), Tests to TS, ESLint (linting), Devbox (dev shell), CI | TypeScript+Vitest ✅; Tests to TS ✅; ESLint ✅; Devbox ✅; CI ✅ |
 
-Phase 4 complete. Phase 2.6 (ECR) complete. Phase 5 planned. Tooling complete.
+Phase 4 complete. Phase 2.6 (ECR) complete. Phase 5 complete. Phase 6 planned. Tooling complete.
 
 ### Proof (tests & example code)
 
@@ -96,6 +104,12 @@ Phase 4 complete. Phase 2.6 (ECR) complete. Phase 5 planned. Tooling complete.
 | **5.5** | `scripts/deploy-tui.ts` or interactive Pulumi config prompts for SQS, S3, API options. |
 | **5.6** | `docs/lambda/README.md`, `docs/api/README.md`, `docs/getting-started.md` — SQS, batch status, batch disable rules. |
 | **5.7** | Handler, resolve-input: `dataJson` base64 or S3 `{ bucket, key }`; write data.json to workDir for Typst. |
+| **6.1** | `test/core/param-variations.test.ts` — mainTyp/mainTypS3, outputFormat, pdfStandard. |
+| **6.2** | Expand `test/core/assets.test.ts` — fonts/assets base64 vs S3; OTF, TTF, PNG, JPEG, SVG. |
+| **6.3** | dataJson tests — base64, S3 ref; Typst fixture using `context read("data.json")`. |
+| **6.4** | Batch variation tests — single, 2, 3 docs; mixed content; `pdf` in batch results for test-output/. |
+| **6.5** | `TYPST_TEST_KEEP_OUTPUT=1` / `npm run test:keep-output` — outputs to `test-output/{core-compile,output-variants,batch}/`. |
+| **6.6** | Cross-adapter fixtures; `test/integration/lambda.test.ts`, `api.test.ts` — same payloads across adapters. |
 | **Tooling (CI)** | `.github/workflows/ci.yml` — lint, build, unit/integration tests (core, lambda, api, webhooks-batch), container tests (Docker), LocalStack E2E (sync + async). Uses setup-typst, LocalStack service. |
 | **Bundler** | `rollup.config.lambda.js` — bundles Lambda handler + core + AWS SDK; `npm run build:lambda` produces `dist-lambda/` with single bundle, no node_modules. |
 
@@ -253,6 +267,25 @@ Getting started flow: user selects use case (container, Lambda, REST API, ECR) �
 | 3 | Param-format tests; request validation (size, schema, path); E2E for REST (API Gateway) |
 | 4 | E2E for webhooks and batch |
 | 5 | E2E for SQS enqueue, batch status, batch disable rules; LocalStack SQS |
+| 6 | Param/asset/font/dataJson/output variations across core and adapters (see Phase 6) |
+
+**Verifiable test outputs:** Run `npm run test:keep-output` (or `TYPST_TEST_KEEP_OUTPUT=1 npm test`) to write output files to `test-output/` for manual inspection. Subdirs: `core-compile/`, `output-variants/`, `batch/`. Files: PDF, SVG, PNG. Gitignored.
+
+**Phase 6 — Test coverage expansion (planned):**
+
+| Dimension | Variations to test |
+|-----------|-------------------|
+| **Params** | `mainTyp` (base64) vs `mainTypS3`; `outputFormat` pdf/svg/png; `pdfStandard` a-2b, a-3b, 1.4, 1.5 |
+| **Fonts** | base64 vs S3 ref; OTF, TTF, TTC; single vs multiple fonts |
+| **Assets** | base64 vs S3 ref; PNG, JPEG, GIF, WebP, SVG (images); multiple assets |
+| **dataJson** | base64 vs S3 ref; empty vs minimal vs nested JSON |
+| **Batch** | Single doc, 2 docs, 3+ docs; mixed content; include `pdf` in sequential batch results for verification |
+| **Core** | `test/core/compile.test.ts` — each output format, pdfStandard; `test/core/assets.test.ts` — font/asset validation |
+| **Container** | Volume mode with fonts/assets in workspace; pipe mode |
+| **Lambda** | Handler with mainTyp, mainTypS3, fonts (base64/S3), assets (base64/S3), dataJson; LocalStack E2E |
+| **API** | REST POST /compile with all param combos; multipart; validation |
+
+**Deliverables:** `test/core/param-variations.test.ts`, expand `test/integration/lambda.test.ts` and `test/integration/api.test.ts`, cross-adapter fixtures.
 
 ---
 
@@ -443,4 +476,37 @@ Client (AWS SDK) → Lambda (Node.js + Layer) → DynamoDB (state)
 | 5.5 | TUI deploy — Interactive setup guides user through SQS, S3, API options |
 | 5.6 | Docs — Update `docs/lambda/`, `docs/api/`, getting-started with SQS, batch status, batch disable rules |
 | 5.7 | dataJson — Base64 or S3 `{ bucket, key }` for template data; resolve in resolve-input; write data.json to workDir |
+
+---
+
+## Phase 6: Test Coverage Expansion
+
+**Goal:** Broader test coverage with systematic param, asset, font, and dataJson variations across core and all adapters. Ensure the same input produces equivalent output regardless of adapter.
+
+**Test matrix:**
+
+| Dimension | Variations |
+|-----------|------------|
+| **Params** | mainTyp (base64) vs mainTypS3; outputFormat pdf/svg/png; pdfStandard a-2b, a-3b, 1.4, 1.5 |
+| **Fonts** | base64 vs S3 ref; OTF, TTF, TTC; single vs multiple |
+| **Assets** | base64 vs S3 ref; PNG, JPEG, GIF, WebP, SVG; single vs multiple |
+| **dataJson** | base64 vs S3 ref; empty vs minimal vs nested JSON |
+
+**Cross-adapter coverage:**
+
+| Adapter | Tests |
+|---------|-------|
+| **Core** | `test/core/compile.test.ts` — each format, pdfStandard; `test/core/assets.test.ts` — font/asset validation |
+| **Container** | Volume mode with fonts/assets; pipe mode; state mode |
+| **Lambda** | Handler: mainTyp, mainTypS3, fonts (base64/S3), assets (base64/S3), dataJson; LocalStack E2E |
+| **API** | REST POST /compile with param combos; multipart; validation |
+
+| Milestone | Tasks |
+|-----------|-------|
+| 6.1 | Param variations — mainTyp base64, mainTypS3; outputFormat pdf/svg/png; pdfStandard |
+| 6.2 | Asset variations — fonts base64 vs S3; assets base64 vs S3; formats (OTF, TTF, PNG, JPEG, SVG) |
+| 6.3 | dataJson variations — base64 vs S3 ref; Typst-compatible JSON |
+| 6.4 | Batch variations — single, 2, 3+ docs; mixed content; verifiable outputs (done) |
+| 6.5 | Verifiable outputs — `npm run test:keep-output` writes to test-output/ (done) |
+| 6.6 | Cross-adapter matrix — core, container, Lambda, API; shared fixtures; same inputs → equivalent outputs |
 

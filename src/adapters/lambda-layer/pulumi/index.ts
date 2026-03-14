@@ -10,15 +10,30 @@ import * as fs from "fs";
 const config = new pulumi.Config();
 const retentionDays = config.getNumber("s3RetentionDays") ?? 7;
 const enableApiGateway = config.getBoolean("enableApiGateway") ?? true;
+const enableSqs = config.getBoolean("enableSqs") ?? false;
 const customerOutputBuckets = config.get("customerOutputBuckets")?.split(",").map((s) => s.trim()).filter(Boolean) ?? [];
 const projectRoot = path.resolve(__dirname, "../../../..");
 
-// DynamoDB table: document_id (PK), status, s3_key, timestamps
+// DynamoDB table: document_id (PK), status, s3_key, batch_id, timestamps
+// GSI on batch_id for batch status queries (Phase 5)
 const table = new aws.dynamodb.Table("typst-documents", {
   name: "typst-documents",
   hashKey: "document_id",
   billingMode: "PAY_PER_REQUEST",
-  attributes: [{ name: "document_id", type: "S" }],
+  attributes: [
+    { name: "document_id", type: "S" },
+    { name: "batch_id", type: "S" },
+  ],
+  globalSecondaryIndexes: enableSqs
+    ? [
+        {
+          name: "batch_id-index",
+          hashKey: "batch_id",
+          rangeKey: "document_id",
+          projectionType: "ALL",
+        },
+      ]
+    : [],
 });
 
 // S3 bucket for output PDFs (optional storage)
@@ -52,7 +67,7 @@ let typstLayer: aws.lambda.LayerVersion | undefined;
 
 if (fs.existsSync(layerZip)) {
   typstLayer = new aws.lambda.LayerVersion("typst-layer", {
-    filename: layerZip,
+    code: new pulumi.asset.FileArchive(layerZip),
     layerName: "typst-binary",
     compatibleRuntimes: [aws.lambda.Runtime.NodeJS20dX],
   });
@@ -70,17 +85,34 @@ new aws.iam.RolePolicyAttachment("lambda-basic", {
   policyArn: aws.iam.ManagedPolicy.AWSLambdaBasicExecutionRole,
 });
 
-// Custom policy: DynamoDB + S3 (input + output buckets + optional customer buckets)
+// SQS queue (Phase 5) — optional, for batch via queue
+let batchQueue: aws.sqs.Queue | undefined;
+let batchQueueArn: pulumi.Output<string> | undefined;
+if (enableSqs) {
+  const dlq = new aws.sqs.Queue("typst-batch-dlq", {
+    messageRetentionSeconds: 1209600, // 14 days
+  });
+  batchQueue = new aws.sqs.Queue("typst-batch-queue", {
+    visibilityTimeoutSeconds: 120,
+    messageRetentionSeconds: 345600, // 4 days
+    redrivePolicy: dlq.arn.apply((arn) =>
+      JSON.stringify({ deadLetterTargetArn: arn, maxReceiveCount: 3 })
+    ),
+  });
+  batchQueueArn = batchQueue.arn;
+}
+
+// Custom policy: DynamoDB + S3 (input + output buckets + optional customer buckets) + SQS when enabled
 const policy = new aws.iam.RolePolicy("typst-lambda-policy", {
   role: role.id,
   policy: pulumi
-    .all([table.arn, outputBucket.arn, inputBucket.arn])
-    .apply(([tableArn, outArn, inArn]) => {
+    .all([table.arn, outputBucket.arn, inputBucket.arn, batchQueueArn ?? pulumi.output("")])
+    .apply(([tableArn, outArn, inArn, queueArn]) => {
       const statements: object[] = [
         {
           Effect: "Allow",
-          Action: ["dynamodb:PutItem", "dynamodb:GetItem", "dynamodb:UpdateItem"],
-          Resource: tableArn,
+          Action: ["dynamodb:PutItem", "dynamodb:GetItem", "dynamodb:UpdateItem", "dynamodb:Query"],
+          Resource: [tableArn, `${tableArn}/index/*`],
         },
         {
           Effect: "Allow",
@@ -93,6 +125,18 @@ const policy = new aws.iam.RolePolicy("typst-lambda-policy", {
           Resource: `${inArn}/*`,
         },
       ];
+      if (queueArn) {
+        statements.push({
+          Effect: "Allow",
+          Action: ["sqs:ReceiveMessage", "sqs:DeleteMessage", "sqs:GetQueueAttributes"],
+          Resource: queueArn,
+        });
+        statements.push({
+          Effect: "Allow",
+          Action: ["sqs:SendMessage"],
+          Resource: queueArn,
+        });
+      }
       for (const bucket of customerOutputBuckets) {
         const arn = bucket.startsWith("arn:") ? bucket : `arn:aws:s3:::${bucket}`;
         statements.push({
@@ -114,6 +158,16 @@ if (!fs.existsSync(distDir)) {
 }
 
 // Package structure matches source: adapters/lambda-layer/, core/
+const lambdaEnv: Record<string, pulumi.Output<string>> = {
+  TYPST_STATE_TABLE: table.name,
+  TYPST_OUTPUT_BUCKET: outputBucket.id,
+  TYPST_INPUT_BUCKET: inputBucket.id,
+  TYPST_PATH: pulumi.output("/opt/bin/typst"),
+};
+if (enableSqs && batchQueue) {
+  lambdaEnv.TYPST_BATCH_QUEUE_URL = batchQueue.url;
+}
+
 const lambda = new aws.lambda.Function("typst-compile", {
   runtime: aws.lambda.Runtime.NodeJS20dX,
   handler: "adapters/lambda-layer/index.handler",
@@ -123,17 +177,21 @@ const lambda = new aws.lambda.Function("typst-compile", {
   memorySize: 512,
   layers: typstLayer ? [typstLayer.arn] : [],
   environment: {
-    variables: {
-      TYPST_STATE_TABLE: table.name,
-      TYPST_OUTPUT_BUCKET: outputBucket.id,
-      TYPST_INPUT_BUCKET: inputBucket.id,
-      TYPST_PATH: "/opt/bin/typst",
-    },
+    variables: lambdaEnv,
   },
 });
 
+// SQS event source mapping (Phase 5)
+if (enableSqs && batchQueue) {
+  new aws.lambda.EventSourceMapping("typst-sqs-trigger", {
+    eventSourceArn: batchQueue.arn,
+    functionName: lambda.name,
+    batchSize: 1,
+  });
+}
+
 // API Gateway HTTP API (Phase 3)
-let apiUrl: pulumi.Output<string> | undefined;
+let apiUrlOutput: pulumi.Output<string> | undefined;
 if (enableApiGateway) {
   const api = new aws.apigatewayv2.Api("typst-api", {
     protocolType: "HTTP",
@@ -166,6 +224,12 @@ if (enableApiGateway) {
     target: pulumi.interpolate`integrations/${integration.id}`,
   });
 
+  const batchStatusRoute = new aws.apigatewayv2.Route("batches-status-route", {
+    apiId: api.id,
+    routeKey: "GET /batches/{id}",
+    target: pulumi.interpolate`integrations/${integration.id}`,
+  });
+
   const stage = new aws.apigatewayv2.Stage("typst-api-stage", {
     apiId: api.id,
     name: "$default",
@@ -179,7 +243,7 @@ if (enableApiGateway) {
     sourceArn: pulumi.interpolate`${api.executionArn}/*/*`,
   });
 
-  apiUrl = pulumi.interpolate`${api.apiEndpoint}`;
+  apiUrlOutput = pulumi.interpolate`${api.apiEndpoint}`;
 }
 
 // Outputs
@@ -188,4 +252,5 @@ export const functionArn = lambda.arn;
 export const stateTableName = table.name;
 export const outputBucketName = outputBucket.id;
 export const inputBucketName = inputBucket.id;
-export const apiUrl = apiUrl;
+export const apiUrl = apiUrlOutput;
+export const batchQueueUrl = batchQueue?.url;

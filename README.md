@@ -128,6 +128,10 @@ npm run test:core
 # Integration tests (container, Lambda, API, webhooks, batch)
 npm run test:integration
 
+# Keep test outputs for manual inspection (PDF, SVG, PNG → test-output/)
+npm run test:keep-output          # Full suite
+npm run test:keep-output:core     # Core + webhooks-batch only (faster; needs Typst in PATH)
+
 # Lambda-only tests
 npm run test:lambda
 

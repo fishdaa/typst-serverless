@@ -11,13 +11,16 @@ import {
     validateS3Key,
     validateWebhookUrl,
     validateBatchEvent,
+    validateDocumentId,
+    validateDataJson,
 } from "../../core/validate.js";
 import { validateAssets } from "../../core/assets.js";
 import { resolveMainTyp } from "./resolve-input.js";
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
-import { DynamoDBDocumentClient } from "@aws-sdk/lib-dynamodb";
+import { DynamoDBDocumentClient, QueryCommand } from "@aws-sdk/lib-dynamodb";
 import { S3Client, PutObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import { SQSClient, SendMessageCommand } from "@aws-sdk/client-sqs";
 import { rmSync } from "node:fs";
 import https from "node:https";
 import http from "node:http";
@@ -41,6 +44,14 @@ const s3 = new S3Client(
         ? { endpoint, region, credentials: { accessKeyId: "test", secretAccessKey: "test" }, forcePathStyle: true }
         : {}
 );
+
+const sqs = new SQSClient(
+    endpoint
+        ? { endpoint, region, credentials: { accessKeyId: "test", secretAccessKey: "test" } }
+        : {}
+);
+
+const BATCH_QUEUE_URL = process.env.TYPST_BATCH_QUEUE_URL;
 
 const USE_IN_MEMORY_STATE = process.env.TYPST_USE_IN_MEMORY_STATE === "true" || process.env.TYPST_USE_IN_MEMORY_STATE === "1";
 const inMemoryState = USE_IN_MEMORY_STATE ? createInMemoryState() : null;
@@ -84,6 +95,8 @@ interface LambdaEvent {
   mainTyp?: string;
   mainTypS3?: { bucket: string; key: string };
   documentId?: string;
+  batchId?: string;
+  dataJson?: string | { bucket: string; key: string };
   fonts?: unknown[];
   assets?: unknown[];
   outputS3?: { bucket: string; keyPrefix?: string };
@@ -111,10 +124,12 @@ export async function handler(event: LambdaEvent, _context?: unknown): Promise<{
     }
 
     try {
+        if (action === "sqs") return await handleSqs(event);
         if (action === "compile") return await handleCompile(event);
         if (action === "status") return await handleStatus(event);
         if (action === "retrieve") return await handleRetrieve(event);
         if (action === "batch") return await handleBatch(event);
+        if (action === "batchstatus") return await handleBatchStatus(String(event.documentId || event.batchId || ""));
         return lambdaResponse(400, { error: `Unknown action: ${action}` });
     } catch (err) {
         if (!process.env.VITEST) console.error(err);
@@ -142,15 +157,24 @@ async function handleCompile(event: LambdaEvent) {
         const wh = validateWebhookUrl(event.webhook.url);
         if (!wh.valid) return lambdaResponse(400, { error: wh.error });
     }
+    if (event.dataJson !== undefined) {
+        const dj = validateDataJson(event.dataJson);
+        if (!dj.valid) return lambdaResponse(400, { error: dj.error });
+    }
 
     const documentId = event.documentId || randomUUID();
     const outputS3 = event.outputS3 && typeof event.outputS3.bucket === "string" ? event.outputS3 : null;
     const storeToS3 = !!(event.storeToS3 && (OUTPUT_BUCKET || outputS3?.bucket));
     const state = getState();
+    const batchId = typeof event.batchId === "string" ? event.batchId : undefined;
 
     let workDir: string | undefined;
     try {
-        await state.set(documentId, { status: "pending", createdAt: Date.now() });
+        await state.set(documentId, {
+            status: "pending",
+            createdAt: Date.now(),
+            ...(batchId && { batch_id: batchId }),
+        });
         await state.update(documentId, { status: "compiling" });
 
         const { workDir: wd, mainPath } = await resolveMainTyp(event, s3);
@@ -298,12 +322,140 @@ async function handleRetrieve(event: LambdaEvent) {
     });
 }
 
+function batchEnabled(): boolean {
+    return !!(BATCH_QUEUE_URL && OUTPUT_BUCKET);
+}
+
+async function handleBatchEnqueue(event: LambdaEvent) {
+    const validation = validateBatchEvent(event);
+    if (!validation.valid) {
+        return lambdaResponse(400, { error: validation.error });
+    }
+    if (!BATCH_QUEUE_URL) {
+        return lambdaResponse(503, { error: "Batch queue not configured" });
+    }
+    const outputS3 = event.outputS3 && typeof event.outputS3.bucket === "string" ? event.outputS3 : null;
+    const storeToS3 = !!(event.storeToS3 && (OUTPUT_BUCKET || outputS3?.bucket));
+    if (!storeToS3) {
+        return lambdaResponse(400, { error: "Batch requires S3 storage (storeToS3: true)" });
+    }
+
+    const batchId = randomUUID();
+    const documentIds: string[] = [];
+
+    for (const doc of event.documents || []) {
+        const d = doc as Record<string, unknown>;
+        const documentId = (d.documentId as string) || randomUUID();
+        documentIds.push(documentId);
+        const message = JSON.stringify({
+            action: "compile",
+            ...d,
+            documentId,
+            batchId,
+            storeToS3: true,
+        });
+        await sqs.send(
+            new SendMessageCommand({
+                QueueUrl: BATCH_QUEUE_URL,
+                MessageBody: message,
+            })
+        );
+    }
+
+    return lambdaResponse(200, { batchId, documentIds });
+}
+
+async function handleBatchStatus(batchId: string) {
+    if (!batchId) {
+        return lambdaResponse(400, { error: "batchId required" });
+    }
+    const idCheck = validateDocumentId(batchId);
+    if (!idCheck.valid) {
+        return lambdaResponse(400, { error: idCheck.error });
+    }
+    if (USE_IN_MEMORY_STATE) {
+        return lambdaResponse(400, { error: "Batch status not available in sync/in-memory mode" });
+    }
+
+    const { Items } = await dynamo.send(
+        new QueryCommand({
+            TableName: STATE_TABLE,
+            IndexName: "batch_id-index",
+            KeyConditionExpression: "batch_id = :bid",
+            ExpressionAttributeValues: { ":bid": batchId },
+        })
+    );
+
+    const results = (Items || []).map((item) => {
+        const r: { documentId: string; status: string; s3Url?: string; error?: string } = {
+            documentId: item.document_id,
+            status: item.status,
+        };
+        if (item.status === "completed" && item.s3_key) {
+            const bucket = item.s3_bucket || OUTPUT_BUCKET;
+            if (bucket) {
+                getSignedUrl(
+                    s3,
+                    new GetObjectCommand({ Bucket: bucket, Key: item.s3_key }),
+                    { expiresIn: PRESIGNED_EXPIRY }
+                ).then((url) => {
+                    r.s3Url = url;
+                });
+            }
+        }
+        if (item.error) r.error = item.error;
+        return r;
+    });
+
+    // Resolve presigned URLs (they're async)
+    const resolved = await Promise.all(
+        results.map(async (r) => {
+            if (r.status === "completed") {
+                const item = (Items || []).find((i) => i.document_id === r.documentId);
+                if (item?.s3_key) {
+                    const bucket = item.s3_bucket || OUTPUT_BUCKET;
+                    if (bucket) {
+                        r.s3Url = await getSignedUrl(
+                            s3,
+                            new GetObjectCommand({ Bucket: bucket, Key: item.s3_key }),
+                            { expiresIn: PRESIGNED_EXPIRY }
+                        );
+                    }
+                }
+            }
+            return r;
+        })
+    );
+
+    return lambdaResponse(200, { batchId, results: resolved });
+}
+
+async function handleSqs(event: LambdaEvent) {
+    const records = event.records as { body: string }[] | undefined;
+    if (!Array.isArray(records)) {
+        return lambdaResponse(400, { error: "Invalid SQS event" });
+    }
+    for (const rec of records) {
+        try {
+            const payload = JSON.parse(rec.body) as LambdaEvent;
+            await handleCompile({ ...payload, action: "compile" });
+        } catch (err) {
+            if (!process.env.VITEST) console.error("SQS message processing failed:", err);
+            throw err;
+        }
+    }
+    return lambdaResponse(200, { processed: records.length });
+}
+
 async function handleBatch(event: LambdaEvent) {
     const validation = validateBatchEvent(event);
     if (!validation.valid) {
         return lambdaResponse(400, { error: validation.error });
     }
-    const results: Array<{ documentId?: string; status: string; error?: string; s3Url?: string }> = [];
+    if (batchEnabled()) {
+        return handleBatchEnqueue(event);
+    }
+    const results: Array<{ documentId?: string; status: string; error?: string; s3Url?: string; pdf?: string }> = [];
     for (const doc of event.documents || []) {
         const subEvent = { ...(doc as LambdaEvent), action: "compile" };
         const res = await handler(subEvent, {});
@@ -313,6 +465,7 @@ async function handleBatch(event: LambdaEvent) {
             status: body.status || (res.statusCode >= 400 ? "failed" : "completed"),
             error: body.error,
             s3Url: body.s3Url,
+            ...(body.pdf && { pdf: body.pdf }),
         });
     }
     return lambdaResponse(200, { results });

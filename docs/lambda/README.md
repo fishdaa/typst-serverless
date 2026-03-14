@@ -60,8 +60,19 @@ npm install && npm run build:layer && npm run build:lambda && \
 ### Configuration
 
 - `s3RetentionDays` — S3 lifecycle rule for output PDFs (default: 7)
+- `enableApiGateway` — Enable REST API (default: true)
+- `enableSqs` — Enable SQS for parallelized batch (Phase 5, default: false)
+
+**Interactive setup (TUI):**
 
 ```bash
+npm run deploy:tui
+```
+
+Prompts for API Gateway, SQS, S3 retention, and customer buckets. Then run `npm run build:lambda && npm run deploy:lambda`.
+
+```bash
+pulumi config set enableSqs true
 pulumi config set s3RetentionDays 14
 ```
 
@@ -192,7 +203,16 @@ Configure `customerOutputBuckets` in Pulumi for IAM access to customer S3.
 - **outputFormat** — `"pdf"` (default), `"svg"`, or `"png"`
 - **pdfStandard** — For PDF output: `"a-2b"`, `"a-3b"`, `"1.4"`, `"1.5"`, etc.
 - **webhook** — `{ url: "https://your-endpoint.com/cb" }` — Lambda POSTs `{ documentId, status, s3Url?, pdf?, error? }` on completion or failure. URL must be HTTPS.
-- **batch** — `action: "batch"`, `documents: [{ mainTyp, storeToS3 }, ...]` — Compile multiple documents; returns `{ results: [{ documentId, status, s3Url?, error? }, ...] }`
+- **batch** — `action: "batch"`, `documents: [{ mainTyp, storeToS3 }, ...]` — Compile multiple documents; returns `{ results: [...] }` (sequential) or `{ batchId, documentIds }` when SQS enabled (Phase 5).
+- **dataJson** — Base64 JSON or `{ bucket, key }` — Template data written to `data.json` in workDir for Typst (Phase 5).
+
+## Phase 5: SQS, batch via queue, batch status
+
+When `enableSqs: true`:
+
+- **Batch via SQS:** `POST /batch` with `storeToS3: true` enqueues 1 message per document. Returns `{ batchId, documentIds }`. Each document compiles in a separate Lambda invocation.
+- **Batch status:** `GET /batches/{batchId}` returns `{ results: [{ documentId, status, s3Url?, error? }, ...] }`.
+- **Batch disable rules:** Batch via SQS requires SQS + S3; disabled for sync path or when S3 is not configured.
 
 ### Example: compile with webhook
 

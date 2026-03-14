@@ -51,6 +51,10 @@ See [docs/container/](container/README.md) for volume, pipe, and state tracking 
    ```bash
    cd src/adapters/lambda-layer/pulumi && npm install && pulumi up
    ```
+   Or use the interactive TUI for SQS, S3, API options:
+   ```bash
+   npm run deploy:tui
+   ```
 
 3. **Invoke** via AWS SDK (Node.js example):
    ```javascript

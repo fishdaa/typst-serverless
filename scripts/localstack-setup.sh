@@ -11,11 +11,14 @@ export AWS_DEFAULT_REGION="${AWS_REGION:-us-east-1}"
 
 echo "LocalStack endpoint: $ENDPOINT"
 
-# DynamoDB table
+# DynamoDB table (with GSI for batch status - Phase 5)
 aws --endpoint-url="$ENDPOINT" dynamodb create-table \
   --table-name typst-documents \
-  --attribute-definitions AttributeName=document_id,AttributeType=S \
+  --attribute-definitions \
+    AttributeName=document_id,AttributeType=S \
+    AttributeName=batch_id,AttributeType=S \
   --key-schema AttributeName=document_id,KeyType=HASH \
+  --global-secondary-indexes 'IndexName=batch_id-index,KeySchema=[{AttributeName=batch_id,KeyType=HASH},{AttributeName=document_id,KeyType=RANGE}],Projection={ProjectionType=ALL}' \
   --billing-mode PAY_PER_REQUEST \
   2>/dev/null || echo "Table typst-documents exists (or error)"
 

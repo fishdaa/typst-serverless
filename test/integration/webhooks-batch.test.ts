@@ -1,5 +1,6 @@
 /**
  * Integration tests: output variants, webhooks, batch (Phase 4 features).
+ * With TYPST_TEST_KEEP_OUTPUT=1, outputs written to test-output/output-variants/, test-output/batch/
  */
 import { describe, it } from "vitest";
 import assert from "node:assert";
@@ -9,8 +10,8 @@ import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const __testDir = dirname(fileURLToPath(import.meta.url));
-import { mkdtempSync, rmSync, readFileSync, existsSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { rmSync, readFileSync, existsSync, writeFileSync } from "node:fs";
+import { getOutputPathAndDir, shouldKeepOutput } from "../test-output-helper.js";
 
 const FIXTURES = join(__testDir, "../fixtures");
 const FIXTURE_TYP = "#set page(width: 100pt)\nHello!";
@@ -20,49 +21,46 @@ describe("output variants", () => {
     it("compiles to PDF with --pdf-standard a-2b when pdfStandard given", async () => {
         const typstPath = process.env.TYPST_PATH;
         if (!typstPath && process.env.CI) return;
-        const outDir = mkdtempSync(join(tmpdir(), "typst-output-"));
+        const { output, outDir } = getOutputPathAndDir("output-variants", "pdf-a2b.pdf");
         try {
             const input = join(FIXTURES, "minimal.typ");
-            const output = join(outDir, "out.pdf");
             await compile(input, output, { pdfStandard: "a-2b" });
             assert(existsSync(output));
             const buf = readFileSync(output);
             assert(buf.length > 0);
             assert(buf[0] === 0x25 && buf[1] === 0x50, "PDF header %P");
         } finally {
-            rmSync(outDir, { recursive: true, force: true });
+            if (!shouldKeepOutput()) rmSync(outDir, { recursive: true, force: true });
         }
     });
 
     it("compiles to SVG when format is svg", async () => {
         const typstPath = process.env.TYPST_PATH;
         if (!typstPath && process.env.CI) return;
-        const outDir = mkdtempSync(join(tmpdir(), "typst-output-"));
+        const { output, outDir } = getOutputPathAndDir("output-variants", "out.svg");
         try {
             const input = join(FIXTURES, "minimal.typ");
-            const output = join(outDir, "out.svg");
             await compile(input, output, { format: "svg" });
             assert(existsSync(output));
             const content = readFileSync(output, "utf-8");
             assert(content.includes("<svg") || content.includes("<?xml"));
         } finally {
-            rmSync(outDir, { recursive: true, force: true });
+            if (!shouldKeepOutput()) rmSync(outDir, { recursive: true, force: true });
         }
     });
 
     it("compiles to PNG when format is png", async () => {
         const typstPath = process.env.TYPST_PATH;
         if (!typstPath && process.env.CI) return;
-        const outDir = mkdtempSync(join(tmpdir(), "typst-output-"));
+        const { output, outDir } = getOutputPathAndDir("output-variants", "out.png");
         try {
             const input = join(FIXTURES, "minimal.typ");
-            const output = join(outDir, "out.png");
             await compile(input, output, { format: "png" });
             assert(existsSync(output));
             const buf = readFileSync(output);
             assert(buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4e, "PNG header");
         } finally {
-            rmSync(outDir, { recursive: true, force: true });
+            if (!shouldKeepOutput()) rmSync(outDir, { recursive: true, force: true });
         }
     });
 });
@@ -136,9 +134,70 @@ describe("batch", () => {
         const body = JSON.parse(res.body);
         assert(Array.isArray(body.results));
         assert.strictEqual(body.results.length, 2);
-        body.results.forEach((r: { documentId?: string; status: string }) => {
+        body.results.forEach((r: { documentId?: string; status: string; pdf?: string }) => {
             assert(r.documentId, "each result should have documentId");
             assert(["completed", "failed"].includes(r.status));
+            if (shouldKeepOutput() && r.pdf) {
+                const { output } = getOutputPathAndDir("batch", `batch-2docs-${r.documentId}.pdf`);
+                writeFileSync(output, Buffer.from(r.pdf, "base64"));
+            }
         });
+    });
+});
+
+describe("batch variations", () => {
+    const TYP_A = "#set page(width: 80pt)\nDoc A";
+    const TYP_B = "#set page(width: 90pt)\nDoc B";
+    const TYP_C = "#set page(width: 100pt)\nDoc C";
+
+    it("batch: mixed content, 3 docs", { timeout: 30000 }, async () => {
+        const res = await handler({
+            action: "batch",
+            documents: [
+                { mainTyp: Buffer.from(TYP_A, "utf-8").toString("base64") },
+                { mainTyp: Buffer.from(TYP_B, "utf-8").toString("base64") },
+                { mainTyp: Buffer.from(TYP_C, "utf-8").toString("base64") },
+            ],
+        });
+        assert.strictEqual(res.statusCode, 200);
+        const body = JSON.parse(res.body);
+        assert.strictEqual(body.results.length, 3);
+        if (shouldKeepOutput()) {
+            body.results.forEach((r: { documentId?: string; pdf?: string }, i: number) => {
+                if (r.pdf) {
+                    const { output } = getOutputPathAndDir("batch", `batch-mixed-doc-${i}.pdf`);
+                    writeFileSync(output, Buffer.from(r.pdf, "base64"));
+                }
+            });
+        }
+    });
+
+    it("batch: single doc", { timeout: 15000 }, async () => {
+        const res = await handler({
+            action: "batch",
+            documents: [{ mainTyp: FIXTURE_B64 }],
+        });
+        assert.strictEqual(res.statusCode, 200);
+        const body = JSON.parse(res.body);
+        assert.strictEqual(body.results.length, 1);
+        assert(body.results[0].documentId);
+        const r = body.results[0] as { pdf?: string };
+        if (shouldKeepOutput() && r?.pdf) {
+            const { output } = getOutputPathAndDir("batch", "batch-single.pdf");
+            writeFileSync(output, Buffer.from(r.pdf, "base64"));
+        }
+    });
+});
+
+describe("batch status (Phase 5)", () => {
+    it("rejects batch status in sync/in-memory mode", async () => {
+        if (process.env.TYPST_USE_IN_MEMORY_STATE !== "1" && process.env.TYPST_USE_IN_MEMORY_STATE !== "true") return;
+        const res = await handler({
+            action: "batchstatus",
+            batchId: "test-batch-123",
+        });
+        assert.strictEqual(res.statusCode, 400);
+        const body = JSON.parse(res.body);
+        assert(body.error?.includes("in-memory") || body.error?.includes("sync"));
     });
 });

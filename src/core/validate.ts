@@ -89,6 +89,18 @@ export function validateS3Key(key: unknown): ValidationResult {
 }
 
 /**
+ * Validate dataJson: base64 string or { bucket, key }.
+ */
+export function validateDataJson(dataJson: unknown): ValidationResult {
+    if (!dataJson) return { valid: true };
+    if (typeof dataJson === "string") return { valid: true };
+    if (typeof dataJson === "object" && dataJson !== null && !Array.isArray(dataJson)) {
+        return validateS3Ref(dataJson);
+    }
+    return { valid: false, error: "dataJson must be base64 string or { bucket, key }" };
+}
+
+/**
  * Validate S3 reference { bucket, key }.
  */
 export function validateS3Ref(ref: unknown): ValidationResult {
