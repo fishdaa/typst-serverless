@@ -1,6 +1,6 @@
 /**
  * Integration tests: output variants, webhooks, batch (Phase 4 features).
- * With TYPST_TEST_KEEP_OUTPUT=1, outputs written to test-output/output-variants/, test-output/batch/
+ * With TYPST_TEST_KEEP_OUTPUT=1, outputs written to test-output/<timestamp>/output-variants/, test-output/<timestamp>/batch/
  */
 import { describe, it } from "vitest";
 import assert from "node:assert";

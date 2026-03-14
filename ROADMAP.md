@@ -59,7 +59,7 @@
 | | 6.2 Asset variations — fonts base64 vs S3; assets base64 vs S3; formats (OTF, TTF, PNG, JPEG, SVG) | ✅ |
 | | 6.3 dataJson variations — base64 vs S3 ref; Typst-compatible JSON | ✅ |
 | | 6.4 Batch variations — single, 2, 3+ docs; mixed content; verifiable outputs in test-output/ | Done |
-| | 6.5 Verifiable outputs — TYPST_TEST_KEEP_OUTPUT=1 writes to test-output/ for manual inspection | Done |
+| | 6.5 Verifiable outputs — TYPST_TEST_KEEP_OUTPUT=1 writes to test-output/<timestamp>/ for manual inspection | Done |
 | | 6.6 Cross-adapter matrix — core compile, container CLI, Lambda handler, API Gateway; same inputs | ✅ |
 | **Chaos** | Retry (withRetry), circuit breaker, fault injection; S3 resolve-input resilience; `test/chaos/`, `docs/chaos.md` | ✅ |
 | **Tooling** | TypeScript, Vitest, build (tsc), Tests to TS, ESLint (linting), Devbox (dev shell), CI | TypeScript+Vitest ✅; Tests to TS ✅; ESLint ✅; Devbox ✅; CI ✅ |
@@ -109,7 +109,7 @@ Phase 4 complete. Phase 2.6 (ECR) complete. Phase 5 complete. Phase 6 complete (
 | **6.2** | Expand `test/core/assets.spec.ts` — fonts/assets base64 vs S3; OTF, TTF, PNG, JPEG, SVG. |
 | **6.3** | dataJson tests — base64, S3 ref; Typst fixture using `json("data.json")`; `test/core/datajson-variations.spec.ts`. |
 | **6.4** | Batch variation tests — single, 2, 3 docs; mixed content; `pdf` in batch results for test-output/. |
-| **6.5** | `TYPST_TEST_KEEP_OUTPUT=1` / `npm run test:keep-output` — outputs to `test-output/{core-compile,output-variants,batch}/`. |
+| **6.5** | `TYPST_TEST_KEEP_OUTPUT=1` / `npm run test:keep-output` — outputs to `test-output/<timestamp>/{core-compile,output-variants,batch}/`. |
 | **6.6** | Cross-adapter fixtures; `test/fixtures/shared-payloads.ts`; `test/integration/cross-adapter.spec.ts` — same payloads, equivalent outputs (core, Lambda, API). |
 | **Tooling (CI)** | `.github/workflows/ci.yml` — lint, build, unit/integration tests (core, lambda, api, webhooks-batch), container tests (Docker), LocalStack E2E (sync + async). Uses setup-typst, LocalStack service. |
 | **Bundler** | `rollup.config.lambda.js` — bundles Lambda handler + core + AWS SDK; `npm run build:lambda` produces `dist-lambda/` with single bundle, no node_modules. |
@@ -270,7 +270,7 @@ Getting started flow: user selects use case (container, Lambda, REST API, ECR) �
 | 5 | E2E for SQS enqueue, batch status, batch disable rules; LocalStack SQS |
 | 6 | Param/asset/font/dataJson/output variations across core and adapters (see Phase 6) |
 
-**Verifiable test outputs:** Run `npm run test:keep-output` (or `TYPST_TEST_KEEP_OUTPUT=1 npm test`) to write output files to `test-output/` for manual inspection. Subdirs: `core-compile/`, `output-variants/`, `batch/`. Files: PDF, SVG, PNG. Gitignored.
+**Verifiable test outputs:** Run `npm run test:keep-output` (or `TYPST_TEST_KEEP_OUTPUT=1 npm test`) to write output files to `test-output/<timestamp>/` for manual inspection. Subdirs: `core-compile/`, `output-variants/`, `batch/`. Use `TYPST_TEST_OUTPUT_RUN=<name>` to override the run dir. Files: PDF, SVG, PNG. Gitignored.
 
 **Phase 6 — Test coverage expansion (planned):**
 
@@ -508,6 +508,6 @@ Client (AWS SDK) → Lambda (Node.js + Layer) → DynamoDB (state)
 | 6.2 | Asset variations — fonts base64 vs S3; assets base64 vs S3; formats (OTF, TTF, PNG, JPEG, SVG) |
 | 6.3 | dataJson variations — base64 vs S3 ref; Typst-compatible JSON |
 | 6.4 | Batch variations — single, 2, 3+ docs; mixed content; verifiable outputs (done) |
-| 6.5 | Verifiable outputs — `npm run test:keep-output` writes to test-output/ (done) |
+| 6.5 | Verifiable outputs — `npm run test:keep-output` writes to test-output/<timestamp>/ (done) |
 | 6.6 | Cross-adapter matrix — core, container, Lambda, API; shared fixtures; same inputs → equivalent outputs |
 

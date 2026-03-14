@@ -82,8 +82,6 @@ export function createCircuitBreaker<T extends (...args: unknown[]) => Promise<u
     let failures = 0;
     let successes = 0;
     let lastFailureTime = 0;
-    let resetTimer: ReturnType<typeof setTimeout> | null = null;
-
     const reset = (): void => {
         state = "half-open";
         successes = 0;

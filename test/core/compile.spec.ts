@@ -2,7 +2,7 @@
  * Core compile logic unit tests.
  * Tests: compile .typ -> PDF, error handling, output path.
  * Run via `npm test` (inside Docker) — typst is available in the container.
- * With TYPST_TEST_KEEP_OUTPUT=1, outputs are written to test-output/core-compile/ for inspection.
+ * With TYPST_TEST_KEEP_OUTPUT=1, outputs are written to test-output/<timestamp>/core-compile/ for inspection.
  */
 import { describe, it } from "vitest";
 import assert from "node:assert";

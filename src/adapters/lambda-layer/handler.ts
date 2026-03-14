@@ -3,7 +3,8 @@
  * Actions: compile, status, retrieve, batch
  */
 import { compile } from "@/core/compile.js";
-import { createDynamoDBState, createInMemoryState } from "@/core/state.js";
+import { createInMemoryState } from "@/core/state.js";
+import { createDynamoDBState } from "@/core/state-dynamodb.js";
 import {
     validatePayloadSize,
     validateCompileEvent,
@@ -44,6 +45,15 @@ const s3 = new S3Client(
         ? { endpoint, region, credentials: { accessKeyId: "test", secretAccessKey: "test" }, forcePathStyle: true }
         : {}
 );
+
+type DynamoBatchItem = {
+    document_id: string;
+    status: string;
+    s3_key?: string;
+    s3_bucket?: string;
+    error?: string;
+};
+type BatchStatusResult = { documentId: string; status: string; s3Url?: string; error?: string };
 
 const sqs = new SQSClient(
     endpoint
@@ -386,8 +396,8 @@ async function handleBatchStatus(batchId: string) {
         })
     );
 
-    const results = (Items || []).map((item) => {
-        const r: { documentId: string; status: string; s3Url?: string; error?: string } = {
+    const results = ((Items || []) as DynamoBatchItem[]).map((item) => {
+        const r: BatchStatusResult = {
             documentId: item.document_id,
             status: item.status,
         };
@@ -398,7 +408,7 @@ async function handleBatchStatus(batchId: string) {
                     s3,
                     new GetObjectCommand({ Bucket: bucket, Key: item.s3_key }),
                     { expiresIn: PRESIGNED_EXPIRY }
-                ).then((url) => {
+                ).then((url: string) => {
                     r.s3Url = url;
                 });
             }
@@ -409,9 +419,9 @@ async function handleBatchStatus(batchId: string) {
 
     // Resolve presigned URLs (they're async)
     const resolved = await Promise.all(
-        results.map(async (r) => {
+        results.map(async (r: BatchStatusResult) => {
             if (r.status === "completed") {
-                const item = (Items || []).find((i) => i.document_id === r.documentId);
+                const item = ((Items || []) as DynamoBatchItem[]).find((i) => i.document_id === r.documentId);
                 if (item?.s3_key) {
                     const bucket = item.s3_bucket || OUTPUT_BUCKET;
                     if (bucket) {
