@@ -41,7 +41,7 @@ export async function compile(
     const format = opts.format ?? inferFormat(outputPath);
     const pdfStandard = opts.pdfStandard;
 
-    const args = ["compile", "--root", root];
+    const args = ["compile", "--root", root, "--font-path", root];
     if (VALID_FORMATS.has(format)) {
         args.push("-f", format);
     }

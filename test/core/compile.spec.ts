@@ -96,16 +96,106 @@ describe("core/compile", () => {
         }
     });
 
-    it("compiles font-doc.typ with custom font when fonts/test.ttf exists (e.g. Roboto)", { timeout: 10000 }, async () => {
+    it("compiles font-doc.typ with custom font when fonts/Roboto/static/Roboto-Regular.ttf exists", { timeout: 10000 }, async () => {
         assertTypst();
-        const fontPath = join(FIXTURES, "fonts", "test.ttf");
+        const fontPath = join(FIXTURES, "fonts", "Roboto", "static", "Roboto-Regular.ttf");
         if (!existsSync(fontPath)) return;
         const { output, outDir } = getOutputPathAndDir("core-compile", "font-doc.pdf");
         const workDir = join(outDir, "work");
         mkdirSync(workDir, { recursive: true });
         try {
             copyFileSync(join(FIXTURES, "font-doc.typ"), join(workDir, "main.typ"));
-            copyFileSync(fontPath, join(workDir, "test.ttf"));
+            copyFileSync(fontPath, join(workDir, "Roboto-Regular.ttf"));
+            const input = join(workDir, "main.typ");
+            await compile(input, output);
+            assert(existsSync(output), "Output PDF should exist");
+            const buf = readFileSync(output);
+            assert(buf.length > 100);
+            assert(buf[0] === 0x25 && buf[1] === 0x50, "Output should be valid PDF");
+        } finally {
+            if (!shouldKeepOutput()) rmSync(outDir, { recursive: true, force: true });
+        }
+    });
+
+    it("compiles font-multi-doc.typ with multiple custom fonts when both font files exist", { timeout: 10000 }, async () => {
+        assertTypst();
+        const robotoPath = join(FIXTURES, "fonts", "Roboto", "static", "Roboto-Regular.ttf");
+        const monoPath = join(FIXTURES, "fonts", "Roboto_Mono", "static", "RobotoMono-Regular.ttf");
+        if (!existsSync(robotoPath) || !existsSync(monoPath)) return;
+        const { output, outDir } = getOutputPathAndDir("core-compile", "font-multi-doc.pdf");
+        const workDir = join(outDir, "work");
+        mkdirSync(workDir, { recursive: true });
+        try {
+            copyFileSync(join(FIXTURES, "font-multi-doc.typ"), join(workDir, "main.typ"));
+            copyFileSync(robotoPath, join(workDir, "Roboto-Regular.ttf"));
+            copyFileSync(monoPath, join(workDir, "RobotoMono-Regular.ttf"));
+            const input = join(workDir, "main.typ");
+            await compile(input, output);
+            assert(existsSync(output), "Output PDF should exist");
+            const buf = readFileSync(output);
+            assert(buf.length > 100);
+            assert(buf[0] === 0x25 && buf[1] === 0x50, "Output should be valid PDF");
+        } finally {
+            if (!shouldKeepOutput()) rmSync(outDir, { recursive: true, force: true });
+        }
+    });
+
+    it("compiles font-same-family-doc.typ with multiple variants of same font family (Regular, Bold, Italic)", { timeout: 10000 }, async () => {
+        assertTypst();
+        const regularPath = join(FIXTURES, "fonts", "Roboto", "static", "Roboto-Regular.ttf");
+        const boldPath = join(FIXTURES, "fonts", "Roboto", "static", "Roboto-Bold.ttf");
+        const italicPath = join(FIXTURES, "fonts", "Roboto", "static", "Roboto-Italic.ttf");
+        if (!existsSync(regularPath) || !existsSync(boldPath) || !existsSync(italicPath)) return;
+        const { output, outDir } = getOutputPathAndDir("core-compile", "font-same-family-doc.pdf");
+        const workDir = join(outDir, "work");
+        mkdirSync(workDir, { recursive: true });
+        try {
+            copyFileSync(join(FIXTURES, "font-same-family-doc.typ"), join(workDir, "main.typ"));
+            copyFileSync(regularPath, join(workDir, "Roboto-Regular.ttf"));
+            copyFileSync(boldPath, join(workDir, "Roboto-Bold.ttf"));
+            copyFileSync(italicPath, join(workDir, "Roboto-Italic.ttf"));
+            const input = join(workDir, "main.typ");
+            await compile(input, output);
+            assert(existsSync(output), "Output PDF should exist");
+            const buf = readFileSync(output);
+            assert(buf.length > 100);
+            assert(buf[0] === 0x25 && buf[1] === 0x50, "Output should be valid PDF");
+        } finally {
+            if (!shouldKeepOutput()) rmSync(outDir, { recursive: true, force: true });
+        }
+    });
+
+    it("compiles font-otf-doc.typ with OTF font when fonts/Roboto_Mono/Roboto_Mono/otf/RobotoMono-Regular.otf exists", { timeout: 10000 }, async () => {
+        assertTypst();
+        const fontPath = join(FIXTURES, "fonts", "Roboto_Mono", "otf", "RobotoMono-Regular.otf");
+        if (!existsSync(fontPath)) return;
+        const { output, outDir } = getOutputPathAndDir("core-compile", "font-otf-doc.pdf");
+        const workDir = join(outDir, "work");
+        mkdirSync(workDir, { recursive: true });
+        try {
+            copyFileSync(join(FIXTURES, "font-otf-doc.typ"), join(workDir, "main.typ"));
+            copyFileSync(fontPath, join(workDir, "RobotoMono-Regular.otf"));
+            const input = join(workDir, "main.typ");
+            await compile(input, output);
+            assert(existsSync(output), "Output PDF should exist");
+            const buf = readFileSync(output);
+            assert(buf.length > 100);
+            assert(buf[0] === 0x25 && buf[1] === 0x50, "Output should be valid PDF");
+        } finally {
+            if (!shouldKeepOutput()) rmSync(outDir, { recursive: true, force: true });
+        }
+    });
+
+    it("compiles font-variable-doc.typ with variable font when fonts/Roboto/Roboto-VariableFont_wdth,wght.ttf exists", { timeout: 10000 }, async () => {
+        assertTypst();
+        const fontPath = join(FIXTURES, "fonts", "Roboto", "Roboto-VariableFont_wdth,wght.ttf");
+        if (!existsSync(fontPath)) return;
+        const { output, outDir } = getOutputPathAndDir("core-compile", "font-variable-doc.pdf");
+        const workDir = join(outDir, "work");
+        mkdirSync(workDir, { recursive: true });
+        try {
+            copyFileSync(join(FIXTURES, "font-variable-doc.typ"), join(workDir, "main.typ"));
+            copyFileSync(fontPath, join(workDir, "Roboto-VariableFont_wdth,wght.ttf"));
             const input = join(workDir, "main.typ");
             await compile(input, output);
             assert(existsSync(output), "Output PDF should exist");
