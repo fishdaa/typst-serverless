@@ -15,7 +15,9 @@ import {
     CROSS_ADAPTER_TYP,
     CROSS_ADAPTER_B64,
     CROSS_ADAPTER_COMPILE_EVENT,
+    ASSETS_COMPILE_EVENT,
 } from "../fixtures/shared-payloads.js";
+import { assertTypst } from "../test-output-helper.js";
 
 function apiEvent(method: string, path: string, body: object | null) {
     return {
@@ -35,8 +37,7 @@ function isValidPdf(buf: Buffer): boolean {
 
 describe("cross-adapter matrix", () => {
     it("same input produces valid PDF from core, Lambda, and API", { timeout: 15000 }, async () => {
-        const typstPath = process.env.TYPST_PATH;
-        if (!typstPath && process.env.CI) return;
+        assertTypst();
 
         const workDir = join(tmpdir(), `cross-adapter-${randomUUID()}`);
         mkdirSync(workDir, { recursive: true });
@@ -112,6 +113,25 @@ describe("cross-adapter matrix", () => {
             }
         } finally {
             rmSync(workDir, { recursive: true, force: true });
+        }
+    });
+
+    it("doc with assets + dataJson produces valid PDF", { timeout: 15000 }, async () => {
+        assertTypst();
+
+        const res = await lambdaHandler({
+            ...ASSETS_COMPILE_EVENT,
+            documentId: `assets-cross-${randomUUID()}`,
+        });
+        assert([200, 500].includes(res.statusCode), "Lambda should return 200 or 500");
+        if (res.statusCode === 200) {
+            const body = JSON.parse(res.body);
+            assert.strictEqual(body.status, "completed");
+            if (body.pdf) {
+                const buf = Buffer.from(body.pdf, "base64");
+                assert(isValidPdf(buf), "Output should be valid PDF");
+                assert(buf.length > 200, "PDF should be non-trivial");
+            }
         }
     });
 });

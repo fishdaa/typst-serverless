@@ -64,7 +64,7 @@ All possible combinations of deployment, invocation, storage, and features. Use 
 
 ---
 
-## Permutation Matrix (Lambda / API)
+## Deployment Matrix (Lambda / API)
 
 ### Sync (single compile)
 

@@ -11,19 +11,14 @@ import { fileURLToPath } from "node:url";
 import { readFileSync, existsSync, rmSync, writeFileSync, mkdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { randomUUID } from "node:crypto";
-import { getOutputPathAndDir, shouldKeepOutput } from "../test-output-helper.js";
+import { getOutputPathAndDir, shouldKeepOutput, assertTypst } from "../test-output-helper.js";
 
 const __testDir = dirname(fileURLToPath(import.meta.url));
 const FIXTURES = join(__testDir, "../fixtures");
 
-function skipWithoutTypst() {
-    if (!process.env.TYPST_PATH && process.env.CI) return true;
-    return false;
-}
-
 describe("core dataJson variations", () => {
     it("compiles when data.json exists with minimal JSON", async () => {
-        if (skipWithoutTypst()) return;
+        assertTypst();
         const workDir = join(tmpdir(), `typst-datajson-${randomUUID()}`);
         const mainPath = join(workDir, "main.typ");
         const { output, outDir } = getOutputPathAndDir("datajson-variations", "minimal.pdf");
@@ -43,7 +38,7 @@ describe("core dataJson variations", () => {
     });
 
     it("compiles when data.json has nested JSON", async () => {
-        if (skipWithoutTypst()) return;
+        assertTypst();
         const workDir = join(tmpdir(), `typst-datajson-${randomUUID()}`);
         const mainPath = join(workDir, "main.typ");
         const { output, outDir } = getOutputPathAndDir("datajson-variations", "nested.pdf");
@@ -60,7 +55,7 @@ describe("core dataJson variations", () => {
     });
 
     it("compiles when data.json is empty object", async () => {
-        if (skipWithoutTypst()) return;
+        assertTypst();
         const workDir = join(tmpdir(), `typst-datajson-${randomUUID()}`);
         const mainPath = join(workDir, "main.typ");
         const { output, outDir } = getOutputPathAndDir("datajson-variations", "empty.pdf");

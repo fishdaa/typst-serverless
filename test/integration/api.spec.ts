@@ -5,7 +5,7 @@
 import { describe, it } from "vitest";
 import assert from "node:assert";
 import { handler } from "@/adapters/lambda-layer/api-handler.js";
-import { CROSS_ADAPTER_B64 } from "../fixtures/shared-payloads.js";
+import { CROSS_ADAPTER_B64, ASSETS_COMPILE_EVENT } from "../fixtures/shared-payloads.js";
 
 const FIXTURE_B64 = CROSS_ADAPTER_B64;
 
@@ -100,6 +100,24 @@ describe("API Gateway handler", () => {
             if (res.statusCode === 200) {
                 const parsed = JSON.parse(res.body);
                 assert(parsed.status === "completed" || parsed.documentId);
+            }
+        });
+
+        it("forwards compile with assets (image + dataJson) to Lambda handler", { timeout: 15000 }, async () => {
+            const ev = apiEvent("POST", "/compile", {
+                ...ASSETS_COMPILE_EVENT,
+                documentId: "api-assets-1",
+            });
+            const res = await handler(ev);
+            assert([200, 500].includes(res.statusCode));
+            if (res.statusCode === 200) {
+                const parsed = JSON.parse(res.body);
+                assert(parsed.status === "completed" || parsed.documentId);
+                if (parsed.pdf) {
+                    const buf = Buffer.from(parsed.pdf, "base64");
+                    assert(buf.length > 200);
+                    assert(buf[0] === 0x25 && buf[1] === 0x50, "Output should be valid PDF");
+                }
             }
         });
     });

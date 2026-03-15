@@ -6,7 +6,8 @@
 import { describe, it } from "vitest";
 import assert from "node:assert";
 import { handler } from "@/adapters/lambda-layer/handler.js";
-import { CROSS_ADAPTER_B64 } from "../fixtures/shared-payloads.js";
+import { CROSS_ADAPTER_B64, ASSETS_COMPILE_EVENT } from "../fixtures/shared-payloads.js";
+import { assertTypst } from "../test-output-helper.js";
 
 const FIXTURE_B64 = CROSS_ADAPTER_B64;
 
@@ -82,11 +83,27 @@ describe("lambda integration", () => {
     });
 
     describe("compile (requires typst + AWS)", () => {
-        it("compiles inline mainTyp when typst and DynamoDB available", async () => {
-            const typstPath = process.env.TYPST_PATH;
-            if (!typstPath && process.env.CI) {
-                return;
+        it("compiles with assets (image) and dataJson when typst available", { timeout: 15000 }, async () => {
+            assertTypst();
+            const res = await handler({
+                ...ASSETS_COMPILE_EVENT,
+                documentId: `assets-${Date.now()}`,
+            });
+            assert([200, 500].includes(res.statusCode));
+            if (res.statusCode === 200) {
+                const body = JSON.parse(res.body);
+                assert.strictEqual(body.status, "completed");
+                assert(body.pdf || body.s3Url);
+                if (body.pdf) {
+                    const buf = Buffer.from(body.pdf, "base64");
+                    assert(buf.length > 200);
+                    assert(buf[0] === 0x25 && buf[1] === 0x50, "Output should be valid PDF");
+                }
             }
+        });
+
+        it("compiles inline mainTyp when typst and DynamoDB available", async () => {
+            assertTypst();
             const res = await handler({
                 action: "compile",
                 mainTyp: FIXTURE_B64,

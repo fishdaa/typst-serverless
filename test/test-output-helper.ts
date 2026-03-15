@@ -1,3 +1,16 @@
+import assert from "node:assert";
+import { join } from "node:path";
+import { mkdirSync, existsSync, mkdtempSync } from "node:fs";
+import { tmpdir } from "node:os";
+
+/**
+ * Asserts that TYPST_PATH is set. Use at the start of tests that require typst.
+ * Tests will fail with a clear message instead of silently skipping.
+ */
+export function assertTypst(): void {
+    assert(process.env.TYPST_PATH, "TYPST_PATH is required for this test");
+}
+
 /**
  * Helper for tests that produce output files (PDF, SVG, PNG).
  * When TYPST_TEST_KEEP_OUTPUT=1, outputs are written to test-output/<run>/ for manual inspection.
@@ -5,10 +18,6 @@
  * Use TYPST_TEST_OUTPUT_RUN=<name> to override the run dir (e.g. test-output/my-run/core-compile/).
  * Run: TYPST_TEST_KEEP_OUTPUT=1 npm test
  */
-import { join } from "node:path";
-import { mkdirSync, existsSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { mkdtempSync } from "node:fs";
 
 const KEEP_OUTPUT = process.env.TYPST_TEST_KEEP_OUTPUT === "1" || process.env.TYPST_TEST_KEEP_OUTPUT === "true";
 const OUTPUT_DIR = join(process.cwd(), "test-output");

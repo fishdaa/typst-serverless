@@ -11,7 +11,7 @@ import { fileURLToPath } from "node:url";
 
 const __testDir = dirname(fileURLToPath(import.meta.url));
 import { rmSync, readFileSync, existsSync, writeFileSync } from "node:fs";
-import { getOutputPathAndDir, shouldKeepOutput } from "../test-output-helper.js";
+import { getOutputPathAndDir, shouldKeepOutput, assertTypst } from "../test-output-helper.js";
 import { CROSS_ADAPTER_B64 } from "../fixtures/shared-payloads.js";
 
 const FIXTURES = join(__testDir, "../fixtures");
@@ -19,8 +19,7 @@ const FIXTURE_B64 = CROSS_ADAPTER_B64;
 
 describe("output variants", () => {
     it("compiles to PDF with --pdf-standard a-2b when pdfStandard given", async () => {
-        const typstPath = process.env.TYPST_PATH;
-        if (!typstPath && process.env.CI) return;
+        assertTypst();
         const { output, outDir } = getOutputPathAndDir("output-variants", "pdf-a2b.pdf");
         try {
             const input = join(FIXTURES, "minimal.typ");
@@ -35,8 +34,7 @@ describe("output variants", () => {
     });
 
     it("compiles to SVG when format is svg", async () => {
-        const typstPath = process.env.TYPST_PATH;
-        if (!typstPath && process.env.CI) return;
+        assertTypst();
         const { output, outDir } = getOutputPathAndDir("output-variants", "out.svg");
         try {
             const input = join(FIXTURES, "minimal.typ");
@@ -50,8 +48,7 @@ describe("output variants", () => {
     });
 
     it("compiles to PNG when format is png", async () => {
-        const typstPath = process.env.TYPST_PATH;
-        if (!typstPath && process.env.CI) return;
+        assertTypst();
         const { output, outDir } = getOutputPathAndDir("output-variants", "out.png");
         try {
             const input = join(FIXTURES, "minimal.typ");

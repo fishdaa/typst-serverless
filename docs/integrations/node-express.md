@@ -79,4 +79,4 @@ const result = JSON.parse(new TextDecoder().decode(Payload));
 
 ## Dynamic content
 
-Pass template data via query params or body, write a `.typ` file with `#set text(...)`, then compile. For complex templates, use `main.typ` that `#include` other files or use typst’s data-passing features.
+Pass template data via query params or body, write a `.typ` file with `#set text(...)`, then compile. For advanced templates, use `main.typ` that `#include` other files or use typst’s data-passing features.

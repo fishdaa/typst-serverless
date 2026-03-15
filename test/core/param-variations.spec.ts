@@ -9,20 +9,15 @@ import { compile } from "@/core/compile.js";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { readFileSync, existsSync, rmSync } from "node:fs";
-import { getOutputPathAndDir, shouldKeepOutput } from "../test-output-helper.js";
+import { getOutputPathAndDir, shouldKeepOutput, assertTypst } from "../test-output-helper.js";
 
 const __testDir = dirname(fileURLToPath(import.meta.url));
 const FIXTURES = join(__testDir, "../fixtures");
 
-function skipWithoutTypst() {
-    if (!process.env.TYPST_PATH && process.env.CI) return true;
-    return false;
-}
-
 describe("core param variations", () => {
     describe("outputFormat", () => {
         it("compiles to PDF (default)", async () => {
-            if (skipWithoutTypst()) return;
+            assertTypst();
             const { output, outDir } = getOutputPathAndDir("param-variations", "out.pdf");
             try {
                 const input = join(FIXTURES, "minimal.typ");
@@ -36,7 +31,7 @@ describe("core param variations", () => {
         });
 
         it("compiles to SVG when format=svg", async () => {
-            if (skipWithoutTypst()) return;
+            assertTypst();
             const { output, outDir } = getOutputPathAndDir("param-variations", "out.svg");
             try {
                 const input = join(FIXTURES, "minimal.typ");
@@ -50,7 +45,7 @@ describe("core param variations", () => {
         });
 
         it("compiles to PNG when format=png", async () => {
-            if (skipWithoutTypst()) return;
+            assertTypst();
             const { output, outDir } = getOutputPathAndDir("param-variations", "out.png");
             try {
                 const input = join(FIXTURES, "minimal.typ");
@@ -69,7 +64,7 @@ describe("core param variations", () => {
 
         for (const std of standards) {
             it(`compiles with pdfStandard=${std}`, async () => {
-                if (skipWithoutTypst()) return;
+                assertTypst();
                 const { output, outDir } = getOutputPathAndDir("param-variations", `pdf-${std.replace(".", "_")}.pdf`);
                 try {
                     const input = join(FIXTURES, "minimal.typ");

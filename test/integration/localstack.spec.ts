@@ -13,6 +13,7 @@ import { describe, it } from "vitest";
 import assert from "node:assert";
 import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 import { handler } from "@/adapters/lambda-layer/handler.js";
+import { assertTypst } from "../test-output-helper.js";
 
 const ENDPOINT = process.env.TYPST_AWS_ENDPOINT || process.env.AWS_ENDPOINT_URL || "http://localhost:4566";
 const INPUT_BUCKET = "typst-input-test";
@@ -34,17 +35,15 @@ function skipSync(): boolean {
 function skipAsync(): boolean {
     return SYNC_MODE;
 }
-function skipIfNoTypst(): boolean {
-    return !process.env.TYPST_PATH && !process.env.CI;
-}
 function skipIfNoLocalStack(): boolean {
-    return (!process.env.TYPST_AWS_ENDPOINT && !process.env.AWS_ENDPOINT_URL) || skipIfNoTypst();
+    return !process.env.TYPST_AWS_ENDPOINT && !process.env.AWS_ENDPOINT_URL;
 }
 
 describe("localstack e2e", () => {
     describe("sync mode (no DynamoDB)", () => {
         it("lambda only: compiles inline mainTyp and returns base64 PDF", async () => {
-            if (skipSync() || skipIfNoTypst()) return;
+            if (skipSync()) return;
+            assertTypst();
             const res = await handler({
                 action: "compile",
                 mainTyp: FIXTURE_B64,
@@ -59,6 +58,7 @@ describe("localstack e2e", () => {
 
         it("lambda + S3: compiles inline mainTyp and stores to S3", async () => {
             if (skipSync() || skipIfNoLocalStack()) return;
+            assertTypst();
             const res = await handler({
                 action: "compile",
                 mainTyp: FIXTURE_B64,
@@ -73,6 +73,7 @@ describe("localstack e2e", () => {
 
         it("lambda + S3: compiles mainTypS3 from S3 and stores output", async () => {
             if (skipSync() || skipIfNoLocalStack()) return;
+            assertTypst();
             await s3.send(
                 new PutObjectCommand({
                     Bucket: INPUT_BUCKET,
@@ -97,6 +98,7 @@ describe("localstack e2e", () => {
     describe("async mode (DynamoDB + S3)", () => {
         it("lambda only: compiles and status returns document", async () => {
             if (skipAsync() || skipIfNoLocalStack()) return;
+            assertTypst();
             const docId = "async-status-1";
             await handler({ action: "compile", mainTyp: FIXTURE_B64, documentId: docId });
             const res = await handler({ action: "status", documentId: docId });
@@ -108,6 +110,7 @@ describe("localstack e2e", () => {
 
         it("lambda + S3: compiles inline mainTyp and stores to S3", async () => {
             if (skipAsync() || skipIfNoLocalStack()) return;
+            assertTypst();
             const res = await handler({
                 action: "compile",
                 mainTyp: FIXTURE_B64,
@@ -122,6 +125,7 @@ describe("localstack e2e", () => {
 
         it("lambda + S3: compiles mainTypS3 from S3 and stores output", async () => {
             if (skipAsync() || skipIfNoLocalStack()) return;
+            assertTypst();
             await s3.send(
                 new PutObjectCommand({
                     Bucket: INPUT_BUCKET,
@@ -144,6 +148,7 @@ describe("localstack e2e", () => {
 
         it("lambda + S3: compile → status → retrieve workflow", async () => {
             if (skipAsync() || skipIfNoLocalStack()) return;
+            assertTypst();
             const docId = "async-workflow-1";
             const compileRes = await handler({
                 action: "compile",
