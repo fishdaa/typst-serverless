@@ -33,6 +33,7 @@ Compile one or more documents. Same structure for single and batch: pass `docume
 
 | Param | Type | Default | Description |
 |-------|------|---------|-------------|
+| `main` | string | `main.typ` | Main .typ filename in workDir (e.g. `document.typ`, `src/report.typ`) |
 | `documentId` | string | auto UUID | Custom ID |
 | `storeToS3` | boolean | false | Store output in S3; return presigned URL |
 | `outputS3` | object | — | `{ bucket, keyPrefix? }` — customer S3 bucket; requires `customerOutputBuckets` in Pulumi |

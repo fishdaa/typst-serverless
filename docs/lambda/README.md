@@ -169,6 +169,7 @@ const result = JSON.parse(new TextDecoder().decode(Payload));
 | action | No | `compile` (default), `status`, `retrieve`, `batch` |
 | mainTyp | Yes (compile) | Base64-encoded .typ source |
 | mainTypS3 | Yes (compile) | `{ bucket, key }` — must use input bucket |
+| main | No | Main .typ filename (default `main.typ`); e.g. `document.typ`, `src/report.typ` |
 | storeToS3 | No | If true, store output in S3; return presigned URL |
 | outputFormat | No | `pdf` (default), `svg`, or `png` |
 | pdfStandard | No | PDF standard: `a-2b`, `a-3b`, `1.4`, `1.5`, etc. (PDF only) |

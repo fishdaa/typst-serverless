@@ -55,6 +55,26 @@ describe("container integration (Docker)", () => {
         }
     });
 
+    it("volume mode: compiles custom main file when TYPST_MAIN is set", () => {
+        const workDir = mkdtempSync(join(tmpdir(), "typst-custom-main-"));
+        try {
+            writeFileSync(join(workDir, "document.typ"), "#set page(width: 100pt)\nCustom main!");
+            const { status } = docker(
+                "run", "--rm",
+                "-v", `${workDir}:/workspace`,
+                "-e", "TYPST_WORKSPACE=/workspace",
+                "-e", "TYPST_MAIN=document.typ",
+                "-e", "TYPST_OUTPUT=output.pdf",
+                IMAGE
+            );
+            assert.strictEqual(status, 0, "Container should exit 0");
+            const buf = readFileSync(join(workDir, "output.pdf"));
+            assert(buf.length > 0 && buf[0] === 0x25, "Output should be valid PDF");
+        } finally {
+            try { rmSync(workDir, { recursive: true, force: true }); } catch {}
+        }
+    });
+
     it("pipe mode: streams PDF to stdout", () => {
         const workDir = mkdtempSync(join(tmpdir(), "typst-pipe-"));
         try {

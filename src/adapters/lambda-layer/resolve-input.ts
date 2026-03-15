@@ -97,16 +97,25 @@ async function resolveDataJson(
     throw new Error("dataJson must be base64 string or { bucket, key }");
 }
 
+function getMainFilename(event: Record<string, unknown>): string {
+    const m = event.main;
+    if (m && typeof m === "string" && m.length > 0 && m.toLowerCase().endsWith(".typ")) {
+        return m;
+    }
+    return "main.typ";
+}
+
 export async function resolveMainTyp(
     event: Record<string, unknown>,
     s3Client: S3Client
 ): Promise<ResolveResult> {
     const workDir = join(tmpdir(), `typst-${randomUUID()}`);
     await mkdir(workDir, { recursive: true });
+    const mainFilename = getMainFilename(event);
 
     if (event.mainTyp && typeof event.mainTyp === "string") {
         const content = Buffer.from(event.mainTyp, "base64").toString("utf-8");
-        const mainPath = join(workDir, "main.typ");
+        const mainPath = join(workDir, mainFilename);
         await writeFile(mainPath, content, "utf-8");
         await resolveFontsAndAssets((event.fonts as AssetItem[]) || [], workDir, s3Client);
         await resolveFontsAndAssets((event.assets as AssetItem[]) || [], workDir, s3Client);
@@ -121,7 +130,7 @@ export async function resolveMainTyp(
             s3Client.send(new GetObjectCommand({ Bucket: bucket, Key: key }))
         );
         const content = Body ? await streamToString(Body as AsyncIterable<Uint8Array>) : "";
-        const mainPath = join(workDir, "main.typ");
+        const mainPath = join(workDir, mainFilename);
         await writeFile(mainPath, content, "utf-8");
         await resolveFontsAndAssets((event.fonts as AssetItem[]) || [], workDir, s3Client);
         await resolveFontsAndAssets((event.assets as AssetItem[]) || [], workDir, s3Client);

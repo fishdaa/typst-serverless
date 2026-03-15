@@ -104,6 +104,7 @@ interface LambdaEvent {
   async?: boolean;
   mainTyp?: string;
   mainTypS3?: { bucket: string; key: string };
+  main?: string;
   documentId?: string;
   batchId?: string;
   dataJson?: string | { bucket: string; key: string };

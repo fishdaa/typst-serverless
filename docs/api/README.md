@@ -36,6 +36,7 @@ pulumi stack output apiUrl
 ```
 
 **Optional fields:**
+- `main` — Main .typ filename (default `main.typ`); e.g. `document.typ`, `src/report.typ`
 - `fonts` — Array of font files: `[{ "name": "fonts/custom.otf", "base64": "..." }]` or `[{ "name": "fonts/custom.otf", "bucket": "...", "key": "..." }]`
 - `assets` — Array of images: `[{ "name": "logo.png", "base64": "..." }]` or S3 refs
 - `mainTypS3` — `{ "bucket": "...", "key": "..." }` instead of inline

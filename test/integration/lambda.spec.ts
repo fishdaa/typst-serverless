@@ -80,6 +80,17 @@ describe("lambda integration", () => {
             });
             assert.strictEqual(res.statusCode, 400);
         });
+
+        it("rejects invalid main (path traversal)", async () => {
+            const res = await handler({
+                action: "compile",
+                mainTyp: FIXTURE_B64,
+                main: "../document.typ",
+            });
+            assert.strictEqual(res.statusCode, 400);
+            const body = JSON.parse(res.body);
+            assert(body.error?.includes("main") || body.error?.includes("path"));
+        });
     });
 
     describe("compile (requires typst + AWS)", () => {
@@ -114,6 +125,26 @@ describe("lambda integration", () => {
                 const body = JSON.parse(res.body);
                 assert.strictEqual(body.status, "completed");
                 assert(body.pdf || body.s3Url);
+            }
+        });
+
+        it("compiles with custom main filename when main is set", { timeout: 15000 }, async () => {
+            assertTypst();
+            const res = await handler({
+                action: "compile",
+                mainTyp: FIXTURE_B64,
+                main: "document.typ",
+                documentId: `custom-main-${Date.now()}`,
+            });
+            assert([200, 500].includes(res.statusCode));
+            if (res.statusCode === 200) {
+                const body = JSON.parse(res.body);
+                assert.strictEqual(body.status, "completed");
+                assert(body.pdf || body.s3Url);
+                if (body.pdf) {
+                    const buf = Buffer.from(body.pdf, "base64");
+                    assert(buf.length > 0 && buf[0] === 0x25, "Output should be valid PDF");
+                }
             }
         });
     });

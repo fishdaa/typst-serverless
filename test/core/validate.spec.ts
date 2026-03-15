@@ -9,6 +9,7 @@ import {
     validateDocumentId,
     validateS3Key,
     validateS3Ref,
+    validateMainTyp,
     validateCompileEvent,
     validateStatusEvent,
     validateWebhookUrl,
@@ -80,6 +81,33 @@ describe("core/validate", () => {
         });
     });
 
+    describe("validateMainTyp", () => {
+        it("accepts undefined or empty (optional)", () => {
+            assert.strictEqual(validateMainTyp(undefined).valid, true);
+            assert.strictEqual(validateMainTyp(null).valid, true);
+            assert.strictEqual(validateMainTyp("").valid, true);
+        });
+
+        it("accepts valid main filename", () => {
+            assert.strictEqual(validateMainTyp("main.typ").valid, true);
+            assert.strictEqual(validateMainTyp("report.typ").valid, true);
+            assert.strictEqual(validateMainTyp("src/report.typ").valid, true);
+        });
+
+        it("rejects path traversal or leading slash", () => {
+            assert.strictEqual(validateMainTyp("../main.typ").valid, false);
+            assert.strictEqual(validateMainTyp("/main.typ").valid, false);
+        });
+
+        it("rejects non-.typ extension", () => {
+            assert.strictEqual(validateMainTyp("main.txt").valid, false);
+        });
+
+        it("rejects non-string", () => {
+            assert.strictEqual(validateMainTyp(123).valid, false);
+        });
+    });
+
     describe("validateCompileEvent", () => {
         it("accepts mainTyp base64", () => {
             const r = validateCompileEvent({ mainTyp: "IyBoZWxsbw==" });
@@ -91,6 +119,16 @@ describe("core/validate", () => {
                 mainTypS3: { bucket: "b", key: "path/main.typ" },
             });
             assert.strictEqual(r.valid, true);
+        });
+
+        it("accepts main (custom main filename)", () => {
+            const r = validateCompileEvent({ mainTyp: "e30=", main: "document.typ" });
+            assert.strictEqual(r.valid, true);
+        });
+
+        it("rejects invalid main", () => {
+            const r = validateCompileEvent({ mainTyp: "e30=", main: "../x.typ" });
+            assert.strictEqual(r.valid, false);
         });
 
         it("rejects missing main source", () => {

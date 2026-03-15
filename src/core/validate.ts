@@ -117,6 +117,27 @@ export function validateS3Ref(ref: unknown): ValidationResult {
 }
 
 /**
+ * Validate optional main typ filename (path relative to workDir).
+ * Must end with .typ, no path traversal, ASCII only.
+ */
+export function validateMainTyp(filename: unknown): ValidationResult {
+    if (filename == null || filename === "") return { valid: true };
+    if (typeof filename !== "string") {
+        return { valid: false, error: "main must be a string" };
+    }
+    if (filename.length === 0 || filename.length > 1024) {
+        return { valid: false, error: "main must be 1-1024 chars" };
+    }
+    if (!isValidS3Key(filename)) {
+        return { valid: false, error: "main invalid: no path traversal (..), no leading slash, ASCII only" };
+    }
+    if (!filename.toLowerCase().endsWith(".typ")) {
+        return { valid: false, error: "main must end with .typ" };
+    }
+    return { valid: true };
+}
+
+/**
  * Validate compile event schema.
  */
 export function validateCompileEvent(event: unknown): ValidationResult {
@@ -135,6 +156,10 @@ export function validateCompileEvent(event: unknown): ValidationResult {
     if (hasS3) {
         const s3 = validateS3Ref(e.mainTypS3);
         if (!s3.valid) return s3;
+    }
+    if (e.main !== undefined) {
+        const mainResult = validateMainTyp(e.main);
+        if (!mainResult.valid) return mainResult;
     }
     if (e.documentId) {
         const id = validateDocumentId(e.documentId);

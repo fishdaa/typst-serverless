@@ -30,6 +30,7 @@ All paths are relative to this base URL.
 |-------|------|---------|-------------|
 | `mainTyp` | string | — | Base64-encoded .typ source (required if not mainTypS3) |
 | `mainTypS3` | object | — | `{ bucket, key }` — S3 reference to main.typ (required if not mainTyp) |
+| `main` | string | `main.typ` | Main .typ filename in workDir (e.g. `document.typ`, `src/report.typ`) |
 | `documentId` | string | auto UUID | Custom document ID |
 | `storeToS3` | boolean | false | Store output in S3; return presigned URL |
 | `outputS3` | object | — | `{ bucket, keyPrefix? }` — customer S3 bucket; requires `customerOutputBuckets` in Pulumi |
@@ -66,6 +67,7 @@ Compile one or more documents. Same structure for single and batch: pass `docume
 |-------|----------|------|-------------|
 | `mainTyp` | one of | string | Base64-encoded .typ source |
 | `mainTypS3` | one of | object | `{ bucket, key }` — S3 reference to main.typ |
+| `main` | No | string | Main .typ filename (default `main.typ`); e.g. `document.typ`, `src/report.typ` |
 | `documentId` | No | string | Custom ID; UUID if omitted |
 | `storeToS3` | No | boolean | Store output in S3; return presigned URL |
 | `outputS3` | No | object | `{ bucket, keyPrefix? }` — customer S3 bucket |

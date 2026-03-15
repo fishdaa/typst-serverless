@@ -14,6 +14,6 @@ if [ -f "$INPUT" ]; then
   OUTPUT="${TYPST_OUTPUT:-output.pdf}"
   exec typst compile --root="$WORKSPACE" "$INPUT" "${WORKSPACE}/${OUTPUT}"
 else
-  echo "error: main.typ not found at $INPUT" >&2
+  echo "error: input file not found at $INPUT" >&2
   exit 1
 fi
