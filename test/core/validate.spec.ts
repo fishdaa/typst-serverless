@@ -14,7 +14,8 @@ import {
     validateStatusEvent,
     validateWebhookUrl,
     validateBatchEvent,
-    validateDataJson,
+    validateData,
+    validateDataFile,
 } from "@/core/validate.js";
 
 describe("core/validate", () => {
@@ -204,31 +205,60 @@ describe("core/validate", () => {
         });
     });
 
-    describe("validateDataJson", () => {
+    describe("validateDataFile", () => {
+        it("accepts undefined or empty", () => {
+            assert.strictEqual(validateDataFile(undefined).valid, true);
+            assert.strictEqual(validateDataFile("").valid, true);
+        });
+
+        it("accepts allowed extensions", () => {
+            assert.strictEqual(validateDataFile("data.json").valid, true);
+            assert.strictEqual(validateDataFile("data.yaml").valid, true);
+            assert.strictEqual(validateDataFile("data.yml").valid, true);
+            assert.strictEqual(validateDataFile("config.toml").valid, true);
+            assert.strictEqual(validateDataFile("data.csv").valid, true);
+            assert.strictEqual(validateDataFile("data.xml").valid, true);
+            assert.strictEqual(validateDataFile("data.cbor").valid, true);
+        });
+
+        it("rejects path traversal, leading slash, and path separators", () => {
+            assert.strictEqual(validateDataFile("../data.json").valid, false);
+            assert.strictEqual(validateDataFile("/data.json").valid, false);
+            assert.strictEqual(validateDataFile("dir/../data.json").valid, false);
+            assert.strictEqual(validateDataFile("subdir/data.json").valid, false);
+        });
+
+        it("rejects disallowed extension", () => {
+            assert.strictEqual(validateDataFile("data.txt").valid, false);
+            assert.strictEqual(validateDataFile("data").valid, false);
+        });
+    });
+
+    describe("validateData", () => {
         it("accepts undefined or null", () => {
-            assert.strictEqual(validateDataJson(undefined).valid, true);
-            assert.strictEqual(validateDataJson(null).valid, true);
+            assert.strictEqual(validateData(undefined).valid, true);
+            assert.strictEqual(validateData(null).valid, true);
         });
 
         it("accepts base64 string", () => {
-            assert.strictEqual(validateDataJson("eyJoZWxsbyI6IndvcmxkIn0=").valid, true);
+            assert.strictEqual(validateData("eyJoZWxsbyI6IndvcmxkIn0=").valid, true);
         });
 
         it("accepts S3 ref { bucket, key }", () => {
             assert.strictEqual(
-                validateDataJson({ bucket: "b", key: "data/data.json" }).valid,
+                validateData({ bucket: "b", key: "data/data.json" }).valid,
                 true
             );
         });
 
         it("rejects invalid S3 ref", () => {
-            assert.strictEqual(validateDataJson({ bucket: "b" }).valid, false);
-            assert.strictEqual(validateDataJson({ key: "x.json" }).valid, false);
+            assert.strictEqual(validateData({ bucket: "b" }).valid, false);
+            assert.strictEqual(validateData({ key: "x.json" }).valid, false);
         });
 
         it("rejects array or non-object", () => {
-            assert.strictEqual(validateDataJson([]).valid, false);
-            assert.strictEqual(validateDataJson(123).valid, false);
+            assert.strictEqual(validateData([]).valid, false);
+            assert.strictEqual(validateData(123).valid, false);
         });
     });
 });

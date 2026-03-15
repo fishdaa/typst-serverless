@@ -54,11 +54,11 @@ export const ASSETS_DATA_JSON_B64 = Buffer.from(
     "utf-8"
 ).toString("base64");
 
-/** Lambda/API compile event with assets and dataJson */
+/** Lambda/API compile event with assets and data */
 export const ASSETS_COMPILE_EVENT = {
     action: "compile" as const,
     mainTyp: ASSETS_TYP_B64,
     documentId: "assets-test",
     assets: [{ name: "logo.png", base64: PIXEL_PNG_B64 }],
-    dataJson: ASSETS_DATA_JSON_B64,
+    data: ASSETS_DATA_JSON_B64,
 };

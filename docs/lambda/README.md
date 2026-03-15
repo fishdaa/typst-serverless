@@ -205,7 +205,7 @@ Configure `customerOutputBuckets` in Pulumi for IAM access to customer S3.
 - **pdfStandard** — For PDF output: `"a-2b"`, `"a-3b"`, `"1.4"`, `"1.5"`, etc.
 - **webhook** — `{ url: "https://your-endpoint.com/cb" }` — Lambda POSTs `{ documentId, status, s3Url?, pdf?, error? }` on completion or failure. URL must be HTTPS.
 - **batch** — `action: "batch"`, `documents: [{ mainTyp, storeToS3 }, ...]` — Compile multiple documents; returns `{ results: [...] }` (sequential) or `{ batchId, documentIds }` when SQS enabled (Phase 5).
-- **dataJson** — Base64 JSON or `{ bucket, key }` — Template data written to `data.json` in workDir for Typst (Phase 5).
+- **data** — Base64 content or `{ bucket, key }` — Template data written to workDir. **dataFile** (default `data.json`) sets the filename; allowed extensions: .json, .yaml, .yml, .toml, .csv, .xml, .cbor. Use the matching Typst function in your template (`json()`, `yaml()`, `toml()`, etc.).
 
 ## Phase 5: SQS, batch via queue, batch status
 

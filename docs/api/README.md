@@ -44,7 +44,7 @@ pulumi stack output apiUrl
 - `outputFormat` — Output format: `"pdf"` (default), `"svg"`, or `"png"`
 - `pdfStandard` — PDF standard for PDF output: `"a-2b"`, `"a-3b"`, `"1.4"`, `"1.5"`, etc.
 - `webhook` — `{ "url": "https://..." }` — POST completion status and s3Url/pdf to your endpoint
-- `dataJson` — Base64-encoded JSON or `{ "bucket": "...", "key": "..." }` for template data (Phase 5)
+- `data` — Base64-encoded content or `{ "bucket": "...", "key": "..." }` for template data; `dataFile` (default `data.json`) — filename in workDir, e.g. `data.yaml`, `config.toml` (allowed: .json, .yaml, .yml, .toml, .csv, .xml, .cbor)
 
 **Response (200):**
 - `storeToS3: true` → `{ documentId, status: "completed", s3Url }`
@@ -78,7 +78,7 @@ Compile multiple documents in one request.
 - Sequential: `{ "results": [ { "documentId", "status", "s3Url?", "error?" }, ... ] }`
 - SQS: `{ "batchId", "documentIds": ["...", "..."] }`
 
-Each item in `documents` supports the same fields as POST /compile (fonts, assets, outputFormat, webhook, dataJson, etc.).
+Each item in `documents` supports the same fields as POST /compile (fonts, assets, outputFormat, webhook, data, dataFile, etc.).
 
 ## GET /batches/{id}
 

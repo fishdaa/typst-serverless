@@ -10,6 +10,7 @@ import { tmpdir } from "node:os";
 import { randomUUID } from "node:crypto";
 import type { S3Client } from "@aws-sdk/client-s3";
 import { withRetry } from "@/core/chaos.js";
+import { validateDataFile } from "@/core/validate.js";
 
 interface ContentSource {
   bucket?: string;
@@ -73,28 +74,34 @@ export interface ResolveResult {
   mainPath: string;
 }
 
-async function resolveDataJson(
-    dataJson: unknown,
+async function resolveData(
+    data: unknown,
+    dataFile: string,
     workDir: string,
     s3Client: S3Client
 ): Promise<void> {
-    if (!dataJson) return;
-    const dataPath = join(workDir, "data.json");
-    if (typeof dataJson === "string") {
-        const content = Buffer.from(dataJson, "base64").toString("utf-8");
-        await writeFile(dataPath, content, "utf-8");
+    if (!data) return;
+    const fileResult = validateDataFile(dataFile);
+    if (!fileResult.valid) throw new Error(fileResult.error);
+    const dataPath = join(workDir, dataFile);
+    if (typeof data === "string") {
+        await writeFile(dataPath, Buffer.from(data, "base64"));
         return;
     }
-    if (typeof dataJson === "object" && dataJson !== null && "bucket" in dataJson && "key" in dataJson) {
-        const ref = dataJson as { bucket: string; key: string };
+    if (typeof data === "object" && data !== null && "bucket" in data && "key" in data) {
+        const ref = data as { bucket: string; key: string };
         const { Body } = await withRetry<GetObjectCommandOutput>(() =>
             s3Client.send(new GetObjectCommand({ Bucket: ref.bucket, Key: ref.key }))
         );
-        const content = Body ? await streamToString(Body as AsyncIterable<Uint8Array>) : "{}";
-        await writeFile(dataPath, content, "utf-8");
+        const chunks: Uint8Array[] = [];
+        if (Body) {
+            const stream = Body as AsyncIterable<Uint8Array>;
+            for await (const chunk of stream) chunks.push(chunk);
+        }
+        await writeFile(dataPath, Buffer.concat(chunks));
         return;
     }
-    throw new Error("dataJson must be base64 string or { bucket, key }");
+    throw new Error("data must be base64 string or { bucket, key }");
 }
 
 function getMainFilename(event: Record<string, unknown>): string {
@@ -119,7 +126,7 @@ export async function resolveMainTyp(
         await writeFile(mainPath, content, "utf-8");
         await resolveFontsAndAssets((event.fonts as AssetItem[]) || [], workDir, s3Client);
         await resolveFontsAndAssets((event.assets as AssetItem[]) || [], workDir, s3Client);
-        await resolveDataJson(event.dataJson, workDir, s3Client);
+        await resolveData(event.data, (event.dataFile as string) ?? "data.json", workDir, s3Client);
         return { workDir, mainPath };
     }
 
@@ -134,7 +141,7 @@ export async function resolveMainTyp(
         await writeFile(mainPath, content, "utf-8");
         await resolveFontsAndAssets((event.fonts as AssetItem[]) || [], workDir, s3Client);
         await resolveFontsAndAssets((event.assets as AssetItem[]) || [], workDir, s3Client);
-        await resolveDataJson(event.dataJson, workDir, s3Client);
+        await resolveData(event.data, (event.dataFile as string) ?? "data.json", workDir, s3Client);
         return { workDir, mainPath };
     }
 

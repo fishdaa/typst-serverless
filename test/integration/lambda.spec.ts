@@ -94,7 +94,7 @@ describe("lambda integration", () => {
     });
 
     describe("compile (requires typst + AWS)", () => {
-        it("compiles with assets (image) and dataJson when typst available", { timeout: 15000 }, async () => {
+        it("compiles with assets (image) and data when typst available", { timeout: 15000 }, async () => {
             assertTypst();
             const res = await handler({
                 ...ASSETS_COMPILE_EVENT,
@@ -144,6 +144,30 @@ describe("lambda integration", () => {
                 if (body.pdf) {
                     const buf = Buffer.from(body.pdf, "base64");
                     assert(buf.length > 0 && buf[0] === 0x25, "Output should be valid PDF");
+                }
+            }
+        });
+
+        it("compiles with data and dataFile (YAML) through handler when typst available", { timeout: 15000 }, async () => {
+            assertTypst();
+            const typContent = '#set page(width: 100pt)\n#let d = yaml("data.yaml")\nRendered: #d.title';
+            const yamlContent = "title: Integration Test\n";
+            const res = await handler({
+                action: "compile",
+                mainTyp: Buffer.from(typContent, "utf-8").toString("base64"),
+                data: Buffer.from(yamlContent, "utf-8").toString("base64"),
+                dataFile: "data.yaml",
+                documentId: `data-yaml-${Date.now()}`,
+            });
+            assert([200, 500].includes(res.statusCode), res.body);
+            if (res.statusCode === 200) {
+                const body = JSON.parse(res.body);
+                assert.strictEqual(body.status, "completed");
+                assert(body.pdf || body.s3Url);
+                if (body.pdf) {
+                    const buf = Buffer.from(body.pdf, "base64");
+                    assert(buf.length > 0);
+                    assert(buf[0] === 0x25 && buf[1] === 0x50, "Output should be valid PDF");
                 }
             }
         });

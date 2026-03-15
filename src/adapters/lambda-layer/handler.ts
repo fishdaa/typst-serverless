@@ -13,7 +13,7 @@ import {
     validateWebhookUrl,
     validateBatchEvent,
     validateDocumentId,
-    validateDataJson,
+    validateData,
 } from "@/core/validate.js";
 import { validateAssets } from "@/core/assets.js";
 import { resolveMainTyp } from "@/adapters/lambda-layer/resolve-input.js";
@@ -107,7 +107,8 @@ interface LambdaEvent {
   main?: string;
   documentId?: string;
   batchId?: string;
-  dataJson?: string | { bucket: string; key: string };
+  data?: string | { bucket: string; key: string };
+  dataFile?: string;
   fonts?: unknown[];
   assets?: unknown[];
   outputS3?: { bucket: string; keyPrefix?: string };
@@ -168,9 +169,9 @@ async function handleCompile(event: LambdaEvent) {
         const wh = validateWebhookUrl(event.webhook.url);
         if (!wh.valid) return lambdaResponse(400, { error: wh.error });
     }
-    if (event.dataJson !== undefined) {
-        const dj = validateDataJson(event.dataJson);
-        if (!dj.valid) return lambdaResponse(400, { error: dj.error });
+    if (event.data !== undefined) {
+        const dataCheck = validateData(event.data, event.dataFile);
+        if (!dataCheck.valid) return lambdaResponse(400, { error: dataCheck.error });
     }
 
     const documentId = event.documentId || randomUUID();

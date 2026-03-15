@@ -88,16 +88,42 @@ export function validateS3Key(key: unknown): ValidationResult {
     return { valid: true };
 }
 
+/** Allowed extensions for data file (Typst: json, yaml, toml, csv, xml, cbor). */
+const DATA_FILE_EXTENSIONS = [".json", ".yaml", ".yml", ".toml", ".csv", ".xml", ".cbor"];
+
 /**
- * Validate dataJson: base64 string or { bucket, key }.
+ * Validate data file name: no path traversal, must end with an allowed extension.
  */
-export function validateDataJson(dataJson: unknown): ValidationResult {
-    if (!dataJson) return { valid: true };
-    if (typeof dataJson === "string") return { valid: true };
-    if (typeof dataJson === "object" && dataJson !== null && !Array.isArray(dataJson)) {
-        return validateS3Ref(dataJson);
+export function validateDataFile(filename: unknown): ValidationResult {
+    if (filename == null || filename === "") return { valid: true };
+    if (typeof filename !== "string") {
+        return { valid: false, error: "dataFile must be a string" };
     }
-    return { valid: false, error: "dataJson must be base64 string or { bucket, key }" };
+    if (filename.length === 0 || filename.length > 1024) {
+        return { valid: false, error: "dataFile must be 1-1024 chars" };
+    }
+    if (filename.includes("..") || filename.startsWith("/") || filename.includes("\\") || filename.includes("/")) {
+        return { valid: false, error: "dataFile invalid: no path traversal, no path separators" };
+    }
+    const lower = filename.toLowerCase();
+    if (!DATA_FILE_EXTENSIONS.some((ext) => lower.endsWith(ext))) {
+        return { valid: false, error: `dataFile must end with one of: ${DATA_FILE_EXTENSIONS.join(", ")}` };
+    }
+    return { valid: true };
+}
+
+/**
+ * Validate data: base64 string or { bucket, key }.
+ */
+export function validateData(data: unknown, dataFile?: unknown): ValidationResult {
+    if (!data) return { valid: true };
+    const fileResult = validateDataFile(dataFile ?? "data.json");
+    if (!fileResult.valid) return fileResult;
+    if (typeof data === "string") return { valid: true };
+    if (typeof data === "object" && data !== null && !Array.isArray(data)) {
+        return validateS3Ref(data);
+    }
+    return { valid: false, error: "data must be base64 string or { bucket, key }" };
 }
 
 /**

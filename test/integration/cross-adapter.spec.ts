@@ -116,7 +116,7 @@ describe("cross-adapter matrix", () => {
         }
     });
 
-    it("doc with assets + dataJson produces valid PDF", { timeout: 15000 }, async () => {
+    it("doc with assets + data produces valid PDF", { timeout: 15000 }, async () => {
         assertTypst();
 
         const res = await lambdaHandler({

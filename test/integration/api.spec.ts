@@ -103,7 +103,7 @@ describe("API Gateway handler", () => {
             }
         });
 
-        it("forwards compile with assets (image + dataJson) to Lambda handler", { timeout: 15000 }, async () => {
+        it("forwards compile with assets (image + data) to Lambda handler", { timeout: 15000 }, async () => {
             const ev = apiEvent("POST", "/compile", {
                 ...ASSETS_COMPILE_EVENT,
                 documentId: "api-assets-1",
@@ -117,6 +117,27 @@ describe("API Gateway handler", () => {
                     const buf = Buffer.from(parsed.pdf, "base64");
                     assert(buf.length > 200);
                     assert(buf[0] === 0x25 && buf[1] === 0x50, "Output should be valid PDF");
+                }
+            }
+        });
+
+        it("forwards compile with data and dataFile (YAML) to Lambda handler", { timeout: 15000 }, async () => {
+            const typContent = '#set page(width: 100pt)\n#let d = yaml("data.yaml")\nAPI: #d.label';
+            const yamlContent = "label: From API\n";
+            const ev = apiEvent("POST", "/compile", {
+                mainTyp: Buffer.from(typContent, "utf-8").toString("base64"),
+                data: Buffer.from(yamlContent, "utf-8").toString("base64"),
+                dataFile: "data.yaml",
+                documentId: "api-data-yaml-1",
+            });
+            const res = await handler(ev);
+            assert([200, 500].includes(res.statusCode), res.body);
+            if (res.statusCode === 200) {
+                const parsed = JSON.parse(res.body);
+                assert(parsed.status === "completed" || parsed.documentId);
+                if (parsed.pdf) {
+                    const buf = Buffer.from(parsed.pdf, "base64");
+                    assert(buf.length > 0 && buf[0] === 0x25 && buf[1] === 0x50, "Output should be valid PDF");
                 }
             }
         });

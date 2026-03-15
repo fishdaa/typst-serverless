@@ -38,7 +38,8 @@ All paths are relative to this base URL.
 | `pdfStandard` | string | — | PDF variant: `a-2b`, `a-3b`, `1.4`, `1.5`, etc. |
 | `fonts` | array | — | `[{ name, base64 }]` or `[{ name, bucket, key }]` — OTF, TTF, TTC |
 | `assets` | array | — | `[{ name, base64 }]` or `[{ name, bucket, key }]` — PNG, JPEG, GIF, WebP, SVG |
-| `dataJson` | string or object | — | Base64-encoded JSON or `{ bucket, key }` — S3 reference to data.json (planned) |
+| `data` | string or object | — | Base64-encoded content or `{ bucket, key }` — S3 reference; written to workDir for Typst |
+| `dataFile` | string | `data.json` | Local filename in workDir (e.g. `data.yaml`, `config.toml`). Allowed: `.json`, `.yaml`, `.yml`, `.toml`, `.csv`, `.xml`, `.cbor`. Template must use matching Typst function: `json()`, `yaml()`, `toml()`, etc. |
 | `webhook` | object | — | `{ url: "https://..." }` — POST on completion/failure (HTTPS only) |
 
 ---
@@ -75,7 +76,8 @@ Compile one or more documents. Same structure for single and batch: pass `docume
 | `pdfStandard` | No | string | `a-2b`, `a-3b`, `1.4`, `1.5`, etc. |
 | `fonts` | No | array | `[{ name, base64 }]` or `[{ name, bucket, key }]` |
 | `assets` | No | array | `[{ name, base64 }]` or `[{ name, bucket, key }]` |
-| `dataJson` | No | string or object | Base64-encoded JSON or `{ bucket, key }` — S3 reference to data.json (planned) |
+| `data` | No | string or object | Base64-encoded content or `{ bucket, key }` — S3 reference; written to workDir |
+| `dataFile` | No | string | Filename in workDir (default `data.json`). Allowed extensions: .json, .yaml, .yml, .toml, .csv, .xml, .cbor |
 | `webhook` | No | object | `{ url: "https://..." }` — POST on completion |
 
 **Response (200):**

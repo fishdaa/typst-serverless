@@ -41,7 +41,8 @@ Compile one or more documents. Same structure for single and batch: pass `docume
 | `pdfStandard` | string | — | PDF variant: `a-2b`, `a-3b`, `1.4`, `1.5`, etc. |
 | `fonts` | array | — | `[{ name, base64 }]` or `[{ name, bucket, key }]` (OTF, TTF, TTC) |
 | `assets` | array | — | `[{ name, base64 }]` or `[{ name, bucket, key }]` (PNG, JPEG, GIF, WebP, SVG) |
-| `dataJson` | string or object | — | Base64-encoded JSON or `{ bucket, key }` — S3 reference to data.json (planned) |
+| `data` | string or object | — | Base64-encoded content or `{ bucket, key }` — S3 reference; written to workDir |
+| `dataFile` | string | `data.json` | Filename in workDir. Allowed: .json, .yaml, .yml, .toml, .csv, .xml, .cbor. Template uses matching Typst function. |
 | `webhook` | object | — | `{ url: "https://..." }` — POST on completion/failure (HTTPS only) |
 
 **Response (200):**
@@ -99,5 +100,5 @@ Job status for document or batch. Returns status and presigned link when complet
 
 | action | Required params | Optional params |
 |--------|-----------------|-----------------|
-| `compile` | documents (array, 1+ items) | — (each item: mainTyp/mainTypS3, documentId, storeToS3, outputS3, outputFormat, fonts, assets, webhook) |
+| `compile` | documents (array, 1+ items) | — (each item: mainTyp/mainTypS3, documentId, storeToS3, outputS3, outputFormat, fonts, assets, data, dataFile, webhook) |
 | `status` | documentId | — |
