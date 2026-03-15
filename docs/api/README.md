@@ -8,11 +8,8 @@ HTTP endpoints for Typst compilation via API Gateway. Deploy with `enableApiGate
 
 | Method | Path | Description |
 |--------|------|-------------|
-| POST | `/compile` | Compile .typ source to PDF, SVG, or PNG |
-| POST | `/batch` | Compile multiple documents (sequential or via SQS when enabled) |
-| GET | `/batches/{id}` | Get batch status — per-item status and S3 links (Phase 5, requires SQS) |
-| GET | `/documents/{id}` | Get document status |
-| GET | `/documents/{id}/pdf` | Get presigned URL to download PDF (when stored in S3) |
+| POST | `/compile` | Compile .typ source to PDF, SVG, or PNG (single or batch via `documents` array) |
+| GET | `/status/{id}` | Get document or batch status; includes presigned `s3Url` when completed |
 
 ## Deploy
 
@@ -25,78 +22,56 @@ pulumi stack output apiUrl
 
 ## POST /compile
 
-**Request:** `Content-Type: application/json`
+**Request:** Either `Content-Type: application/json` or `multipart/form-data`.
 
-```json
-{
-  "mainTyp": "<base64-encoded .typ source>",
-  "storeToS3": true,
-  "documentId": "optional-custom-id"
-}
-```
+### JSON
 
-**Optional fields:**
-- `main` — Main .typ filename (default `main.typ`); e.g. `document.typ`, `src/report.typ`
-- `fonts` — Array of font files: `[{ "name": "fonts/custom.otf", "base64": "..." }]` or `[{ "name": "fonts/custom.otf", "bucket": "...", "key": "..." }]`
-- `assets` — Array of images: `[{ "name": "logo.png", "base64": "..." }]` or S3 refs
-- `mainTypS3` — `{ "bucket": "...", "key": "..." }` instead of inline
-- `outputS3` — Customer-owned S3: `{ "bucket": "my-bucket", "keyPrefix": "pdfs/" }`
-- `outputKey` — Custom S3 object key when `storeToS3` is true (e.g. `reports/2024.pdf`). Reusing the same key overwrites per S3 behavior.
-- `outputFormat` — Output format: `"pdf"` (default), `"svg"`, or `"png"`
-- `pdfStandard` — PDF standard for PDF output: `"a-2b"`, `"a-3b"`, `"1.4"`, `"1.5"`, etc.
-- `webhook` — `{ "url": "https://..." }` — POST completion status and s3Url/pdf to your endpoint
-- `data` — Base64-encoded content or `{ "bucket": "...", "key": "..." }` for template data; `dataFile` (default `data.json`) — filename in workDir, e.g. `data.yaml`, `config.toml` (allowed: .json, .yaml, .yml, .toml, .csv, .xml, .cbor)
-
-**Response (200):**
-- `storeToS3: true` → `{ documentId, status: "completed", s3Url }`
-- Default → `{ documentId, status: "completed", pdf: "<base64>" }`
-
-**Limits:**
-- Body size: 10MB
-- Asset formats: PNG, JPEG, GIF, WebP, SVG (images); OTF, TTF, TTC (fonts)
-
-## POST /batch
-
-Compile multiple documents in one request.
-
-**Batch modes:**
-- **Sequential (default):** When SQS is disabled, processes documents one-by-one in the same Lambda. Response: `{ results: [...] }`.
-- **Via SQS (Phase 5):** When SQS is enabled and S3 storage is enabled, enqueues 1 message per document. Response: `{ batchId, documentIds }`. Poll `GET /batches/{batchId}` for status.
-- **Batch disabled:** When SQS is enabled but S3 is not, or when using sync path, batch returns an error.
-
-**Request:** `Content-Type: application/json`
+Body must include a `documents` array (one or more items):
 
 ```json
 {
   "documents": [
-    { "mainTyp": "<base64>", "storeToS3": true },
-    { "mainTypS3": { "bucket": "...", "key": "..." } }
+    {
+      "mainTyp": "<base64-encoded .typ source>",
+      "storeToS3": true,
+      "documentId": "optional-custom-id"
+    }
   ]
 }
 ```
 
+**Per-document optional fields:** `main`, `fonts`, `assets`, `mainTypS3`, `outputS3`, `outputKey`, `outputFormat` (`pdf`|`svg`|`png`), `pdfStandard`, `webhook`, `data`, `dataFile`. See [api-gateway-options.md](../api-gateway-options.md) for full param reference.
+
+### Multipart form-data (single document)
+
+One .typ file per request. Part names:
+
+| Part name | Required | Description |
+|-----------|----------|-------------|
+| `main`, `mainTyp`, or `file` | Yes (one of) | The .typ source file (binary or text) |
+| `documentId` | No | Form field: custom document ID |
+| `storeToS3` | No | Form field: `true` or `1` to store output in S3 |
+| `outputFormat` | No | Form field: `pdf`, `svg`, or `png` |
+| `main` (field) | No | Form field: main filename override (e.g. `report.typ`); default `main.typ` |
+| `asset` / `assets` | No | File part(s): images (PNG, JPEG, etc.) |
+| `font` / `fonts` | No | File part(s): fonts (OTF, TTF, TTC) |
+| `data` | No | File part: template data (e.g. `data.json`); filename becomes `dataFile` |
+| `webhook` | No | Form field: HTTPS URL for completion callback |
+
+Response shape is the same as JSON (single document).
+
 **Response (200):**
-- Sequential: `{ "results": [ { "documentId", "status", "s3Url?", "error?" }, ... ] }`
-- SQS: `{ "batchId", "documentIds": ["...", "..."] }`
+- Single doc, inline: `{ documentId, status: "completed", pdf?: "<base64>" }`
+- Single doc, S3: `{ documentId, status: "completed", s3Url }`
+- Multiple docs: `{ results: [ { documentId, status, s3Url?, error? }, ... ] }` or (Phase 5 SQS) `{ batchId, documentIds }` — then poll `GET /status/{batchId}`
 
-Each item in `documents` supports the same fields as POST /compile (fonts, assets, outputFormat, webhook, data, dataFile, etc.).
+**Limits:** Body 10MB; asset formats: PNG, JPEG, GIF, WebP, SVG (images); OTF, TTF, TTC (fonts).
 
-## GET /batches/{id}
+## GET /status/{id}
 
-Returns batch status (Phase 5, requires SQS enabled).
+Returns document or batch status. `id` = document ID or batch ID.
 
-**Response (200):** `{ "batchId", "results": [ { "documentId", "status", "s3Url?", "error?" }, ... ] }`
-
-- `status`: `"pending"`, `"compiling"`, `"completed"`, or `"failed"`
-- `s3Url`: Presigned URL for completed items (when stored in S3)
-
-## GET /documents/{id}
-
-Returns document status: `{ documentId, status, s3_key?, error?, createdAt?, updatedAt? }`
-
-## GET /documents/{id}/pdf
-
-Returns presigned URL when PDF was stored in S3: `{ s3Url }`
+**Response (200):** `{ documentId?, batchId?, status, s3Url?, s3_key?, error?, results?, ... }` — `s3Url` is the presigned download link when completed and stored in S3. Status: `pending` | `compiling` | `completed` | `failed`. For batches (Phase 5): `results` array with per-item status and `s3Url`.
 
 ## CORS
 

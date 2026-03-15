@@ -47,7 +47,7 @@ All paths are relative to this base URL.
 
 ## Request / Response
 
-- **Content-Type:** `application/json` for POST bodies
+- **Content-Type:** POST /compile accepts `application/json` or `multipart/form-data`. See [Multipart form-data](#multipart-form-data-single-document) below.
 - **Response:** JSON; errors return `{ error: "..." }` with 4xx/5xx status
 - **CORS:** `Access-Control-Allow-Origin: *` on all responses
 
@@ -93,14 +93,37 @@ Compile one or more documents. Same structure for single and batch: pass `docume
 **Examples:**
 
 ```bash
-# Single document
+# Single document (JSON)
 curl -X POST "$API_URL/compile" -H "Content-Type: application/json" \
   -d '{"documents":[{"mainTyp":"'$(echo -n '#Hello' | base64)'","storeToS3":true}]}'
 
-# Multiple documents
+# Multiple documents (JSON)
 curl -X POST "$API_URL/compile" -H "Content-Type: application/json" \
   -d '{"documents":[{"mainTyp":"'$(echo -n '#doc1' | base64)'","storeToS3":true},{"mainTyp":"'$(echo -n '#doc2' | base64)'","storeToS3":true}]}'
+
+# Single document (multipart)
+curl -X POST "$API_URL/compile" -F "main=@report.typ" -F "documentId=my-doc" "$API_URL/compile"
 ```
+
+---
+
+## Multipart form-data (single document)
+
+When `Content-Type` is `multipart/form-data`, POST /compile accepts a **single** document. No `documents` array; the .typ source is sent as a file part.
+
+| Part name | Required | Type | Description |
+|-----------|----------|------|-------------|
+| `main`, `mainTyp`, or `file` | Yes (one of) | File | The .typ source file |
+| `documentId` | No | Field | Custom document ID |
+| `storeToS3` | No | Field | `true` or `1` to store output in S3 |
+| `outputFormat` | No | Field | `pdf`, `svg`, `png` |
+| `main` (field) | No | Field | Main filename override (default `main.typ`) |
+| `asset` / `assets` | No | File(s) | Images (PNG, JPEG, GIF, WebP, SVG) |
+| `font` / `fonts` | No | File(s) | Fonts (OTF, TTF, TTC) |
+| `data` | No | File | Template data file; filename used as `dataFile` |
+| `webhook` | No | Field | HTTPS URL for completion callback |
+
+Response is the same as JSON single-document: `{ documentId, status, pdf?, s3Url?, format? }`.
 
 ---
 

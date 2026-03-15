@@ -297,14 +297,25 @@ async function handleStatus(event: LambdaEvent) {
     if (!doc) {
         return lambdaResponse(404, { error: "Document not found" });
     }
-    return lambdaResponse(200, {
+    const out: Record<string, unknown> = {
         documentId: docId,
         status: doc.status,
         s3_key: doc.s3_key,
         createdAt: doc.createdAt,
         updatedAt: doc.updatedAt,
         error: doc.error,
-    });
+    };
+    if (doc.status === "completed" && doc.s3_key) {
+        const bucket = doc.s3_bucket || OUTPUT_BUCKET;
+        if (bucket) {
+            out.s3Url = await getSignedUrl(
+                s3,
+                new GetObjectCommand({ Bucket: bucket, Key: doc.s3_key }),
+                { expiresIn: PRESIGNED_EXPIRY }
+            );
+        }
+    }
+    return lambdaResponse(200, out);
 }
 
 async function handleRetrieve(event: LambdaEvent) {

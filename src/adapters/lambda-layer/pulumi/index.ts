@@ -212,21 +212,9 @@ if (enableApiGateway) {
     target: pulumi.interpolate`integrations/${integration.id}`,
   });
 
-  const documentRoute = new aws.apigatewayv2.Route("documents-route", {
+  const statusRoute = new aws.apigatewayv2.Route("status-route", {
     apiId: api.id,
-    routeKey: "GET /documents/{id}",
-    target: pulumi.interpolate`integrations/${integration.id}`,
-  });
-
-  const documentPdfRoute = new aws.apigatewayv2.Route("documents-pdf-route", {
-    apiId: api.id,
-    routeKey: "GET /documents/{id}/pdf",
-    target: pulumi.interpolate`integrations/${integration.id}`,
-  });
-
-  const batchStatusRoute = new aws.apigatewayv2.Route("batches-status-route", {
-    apiId: api.id,
-    routeKey: "GET /batches/{id}",
+    routeKey: "GET /status/{id}",
     target: pulumi.interpolate`integrations/${integration.id}`,
   });
 

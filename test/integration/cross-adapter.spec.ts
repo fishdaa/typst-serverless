@@ -72,8 +72,9 @@ describe("cross-adapter matrix", () => {
             // 3. API handler
             const apiRes = await apiHandler(
                 apiEvent("POST", "/compile", {
-                    mainTyp: CROSS_ADAPTER_B64,
-                    documentId: `cross-api-${randomUUID()}`,
+                    documents: [
+                        { mainTyp: CROSS_ADAPTER_B64, documentId: `cross-api-${randomUUID()}` },
+                    ],
                 })
             );
             assert([200, 500].includes(apiRes.statusCode), "API should return 200 or 500");

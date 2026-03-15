@@ -1,9 +1,14 @@
 /**
  * API Gateway HTTP API v2 adapter.
  * Transforms REST requests to Lambda events and returns HTTP responses.
+ * Supports JSON and multipart/form-data for POST /compile.
  */
 import { handler as lambdaHandler } from "./handler.js";
 import { validateRestPayloadSize, validateDocumentId } from "@/core/validate.js";
+import {
+    parseMultipartCompileBody,
+    isMultipartFormData,
+} from "./multipart.js";
 
 function httpResponse(statusCode: number, body: object | string, headers: Record<string, string> = {}) {
     return {
@@ -17,13 +22,28 @@ function httpResponse(statusCode: number, body: object | string, headers: Record
     };
 }
 
+function getContentType(event: Record<string, unknown>): string | undefined {
+    const headers = (event.headers as Record<string, string | string[] | undefined>) || {};
+    const ct = headers["content-type"] ?? headers["Content-Type"];
+    return Array.isArray(ct) ? ct[0] : ct;
+}
+
 function parseApiEvent(event: Record<string, unknown>) {
     const bodyRaw = event.body;
     const isBase64 = !!(event as { isBase64Encoded?: boolean }).isBase64Encoded;
-    let body: string | null = null;
+    let bodyBuffer: Buffer | null = null;
+    let bodyStr: string | null = null;
     if (bodyRaw) {
-        const buf = isBase64 ? Buffer.from(bodyRaw as string, "base64") : Buffer.from(bodyRaw as string, "utf8");
-        body = buf.toString("utf-8");
+        const buf =
+            typeof bodyRaw === "string"
+                ? isBase64
+                    ? Buffer.from(bodyRaw, "base64")
+                    : Buffer.from(bodyRaw, "utf8")
+                : null;
+        if (buf) {
+            bodyBuffer = buf;
+            bodyStr = buf.toString("utf-8");
+        }
     }
 
     const reqCtx = event.requestContext as { http?: { method?: string } } | undefined;
@@ -32,8 +52,9 @@ function parseApiEvent(event: Record<string, unknown>) {
     const routeKey = (event.routeKey as string) || (reqCtx?.http?.method + " " + (rawPath || path || ""));
     const pathParams = (event.pathParameters as Record<string, string>) || {};
     const id = pathParams.id || pathParams.proxy;
+    const contentType = getContentType(event);
 
-    return { body, routeKey, pathParams, id };
+    return { bodyBuffer, bodyStr, routeKey, pathParams, id, contentType };
 }
 
 export async function handler(event: Record<string, unknown>): Promise<{
@@ -41,7 +62,7 @@ export async function handler(event: Record<string, unknown>): Promise<{
   headers: Record<string, string>;
   body: string;
 }> {
-    const { body, routeKey, id } = parseApiEvent(event);
+    const { bodyBuffer, bodyStr, routeKey, id, contentType } = parseApiEvent(event);
 
     if ((event.requestContext as { http?: { method?: string } })?.http?.method === "OPTIONS") {
         return httpResponse(200, "", {
@@ -51,8 +72,8 @@ export async function handler(event: Record<string, unknown>): Promise<{
         });
     }
 
-    if (body) {
-        const sizeCheck = validateRestPayloadSize(body);
+    if (bodyBuffer ?? bodyStr) {
+        const sizeCheck = validateRestPayloadSize(bodyBuffer ?? bodyStr ?? null);
         if (!sizeCheck.valid) {
             return httpResponse(413, { error: sizeCheck.error });
         }
@@ -62,39 +83,39 @@ export async function handler(event: Record<string, unknown>): Promise<{
     const path = (event.rawPath as string) || (event.path as string) || "";
 
     if (method === "POST" && (path === "/compile" || path?.startsWith("/compile"))) {
-        return await handleCompile(body);
+        return await handleCompile(bodyBuffer, bodyStr, contentType);
     }
-    if (method === "POST" && (path === "/batch" || path?.startsWith("/batch"))) {
-        return await handleBatch(body);
-    }
-    if (method === "GET" && id) {
-        if (path?.startsWith("/batches/")) {
+    if (method === "GET" && (path === "/status" || path?.startsWith("/status/")) && id) {
+        const statusRes = await handleStatus(id);
+        if (statusRes.statusCode === 404) {
             return await handleBatchStatus(id);
         }
-        if (path?.endsWith("/pdf")) {
-            return await handleRetrieve(id);
-        }
-        return await handleStatus(id);
+        return statusRes;
     }
 
     return httpResponse(404, { error: "Not found" });
 }
 
-async function handleCompile(bodyStr: string | null) {
-    if (!bodyStr || bodyStr.trim().length === 0) {
+async function handleCompile(
+    bodyBuffer: Buffer | null,
+    bodyStr: string | null,
+    contentType: string | undefined
+) {
+    if (!bodyBuffer && !bodyStr) {
         return httpResponse(400, { error: "Request body is required" });
     }
-    let payload: Record<string, unknown>;
-    try {
-        payload = JSON.parse(bodyStr);
-    } catch {
-        return httpResponse(400, { error: "Invalid JSON body" });
-    }
-    const res = await lambdaHandler({ ...payload, action: "compile" } as Parameters<typeof lambdaHandler>[0], {});
-    return toHttpResponse(res);
-}
 
-async function handleBatch(bodyStr: string | null) {
+    if (bodyBuffer && isMultipartFormData(contentType)) {
+        try {
+            const doc = await parseMultipartCompileBody(bodyBuffer, contentType!);
+            const res = await lambdaHandler({ ...doc, action: "compile" } as Parameters<typeof lambdaHandler>[0], {});
+            return toHttpResponse(res);
+        } catch (err) {
+            const message = err instanceof Error ? err.message : "Invalid multipart body";
+            return httpResponse(400, { error: message });
+        }
+    }
+
     if (!bodyStr || bodyStr.trim().length === 0) {
         return httpResponse(400, { error: "Request body is required" });
     }
@@ -104,7 +125,16 @@ async function handleBatch(bodyStr: string | null) {
     } catch {
         return httpResponse(400, { error: "Invalid JSON body" });
     }
-    const res = await lambdaHandler({ ...payload, action: "batch" } as Parameters<typeof lambdaHandler>[0], {});
+    const documents = Array.isArray(payload.documents) ? payload.documents : null;
+    if (!documents || documents.length === 0) {
+        return httpResponse(400, { error: "documents array is required and must have at least one item" });
+    }
+    if (documents.length === 1) {
+        const doc = documents[0] as Record<string, unknown>;
+        const res = await lambdaHandler({ ...doc, action: "compile" } as Parameters<typeof lambdaHandler>[0], {});
+        return toHttpResponse(res);
+    }
+    const res = await lambdaHandler({ documents, action: "batch" } as Parameters<typeof lambdaHandler>[0], {});
     return toHttpResponse(res);
 }
 
@@ -114,15 +144,6 @@ async function handleStatus(id: string) {
         return httpResponse(400, { error: idCheck.error });
     }
     const res = await lambdaHandler({ action: "status", documentId: id } as Parameters<typeof lambdaHandler>[0], {});
-    return toHttpResponse(res);
-}
-
-async function handleRetrieve(id: string) {
-    const idCheck = validateDocumentId(id);
-    if (!idCheck.valid) {
-        return httpResponse(400, { error: idCheck.error });
-    }
-    const res = await lambdaHandler({ action: "retrieve", documentId: id } as Parameters<typeof lambdaHandler>[0], {});
     return toHttpResponse(res);
 }
 
