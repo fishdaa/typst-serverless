@@ -112,6 +112,7 @@ interface LambdaEvent {
   fonts?: unknown[];
   assets?: unknown[];
   outputS3?: { bucket: string; keyPrefix?: string };
+  outputKey?: string;
   webhook?: { url: string };
   storeToS3?: boolean;
   outputFormat?: string;
@@ -165,6 +166,10 @@ async function handleCompile(event: LambdaEvent) {
     if (event.outputS3 && (!event.outputS3.bucket || typeof event.outputS3.bucket !== "string")) {
         return lambdaResponse(400, { error: "outputS3.bucket is required for customer S3" });
     }
+    if (event.outputKey !== undefined) {
+        const keyCheck = validateS3Key(event.outputKey);
+        if (!keyCheck.valid) return lambdaResponse(400, { error: keyCheck.error });
+    }
     if (event.webhook?.url) {
         const wh = validateWebhookUrl(event.webhook.url);
         if (!wh.valid) return lambdaResponse(400, { error: wh.error });
@@ -207,7 +212,9 @@ async function handleCompile(event: LambdaEvent) {
             const bucket = outputS3?.bucket ?? OUTPUT_BUCKET;
             if (!bucket) throw new Error("Output bucket not configured (TYPST_OUTPUT_BUCKET or outputS3.bucket)");
             const keyPrefix = (outputS3?.keyPrefix || "outputs/").replace(/\/?$/, "/");
-            const s3Key = `${keyPrefix}${documentId}.${ext}`;
+            const s3Key = typeof event.outputKey === "string" && event.outputKey.length > 0
+                ? event.outputKey
+                : `${keyPrefix}${documentId}.${ext}`;
             const keyCheck = validateS3Key(s3Key);
             if (!keyCheck.valid) {
                 throw new Error(keyCheck.error);

@@ -41,6 +41,7 @@ pulumi stack output apiUrl
 - `assets` — Array of images: `[{ "name": "logo.png", "base64": "..." }]` or S3 refs
 - `mainTypS3` — `{ "bucket": "...", "key": "..." }` instead of inline
 - `outputS3` — Customer-owned S3: `{ "bucket": "my-bucket", "keyPrefix": "pdfs/" }`
+- `outputKey` — Custom S3 object key when `storeToS3` is true (e.g. `reports/2024.pdf`). Reusing the same key overwrites per S3 behavior.
 - `outputFormat` — Output format: `"pdf"` (default), `"svg"`, or `"png"`
 - `pdfStandard` — PDF standard for PDF output: `"a-2b"`, `"a-3b"`, `"1.4"`, `"1.5"`, etc.
 - `webhook` — `{ "url": "https://..." }` — POST completion status and s3Url/pdf to your endpoint

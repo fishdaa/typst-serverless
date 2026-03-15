@@ -11,7 +11,7 @@
  */
 import { describe, it } from "vitest";
 import assert from "node:assert";
-import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
+import { S3Client, PutObjectCommand, GetObjectCommand, ListBucketsCommand, HeadBucketCommand } from "@aws-sdk/client-s3";
 import { handler } from "@/adapters/lambda-layer/handler.js";
 import { assertTypst } from "../test-output-helper.js";
 
@@ -39,6 +39,25 @@ function skipIfNoLocalStack(): boolean {
     return !process.env.TYPST_AWS_ENDPOINT && !process.env.AWS_ENDPOINT_URL;
 }
 
+/** Asserts LocalStack is reachable and S3 output/input buckets exist. Fails the test with a clear message if not. */
+async function assertLocalStackS3Available(): Promise<void> {
+    try {
+        await s3.send(new ListBucketsCommand({}));
+    } catch (e) {
+        assert.fail(`LocalStack not available (S3 ListBuckets failed): ${(e as Error).message}`);
+    }
+    try {
+        await s3.send(new HeadBucketCommand({ Bucket: OUTPUT_BUCKET }));
+    } catch (e) {
+        assert.fail(`S3 output bucket "${OUTPUT_BUCKET}" not present (run scripts/localstack-setup.sh): ${(e as Error).message}`);
+    }
+    try {
+        await s3.send(new HeadBucketCommand({ Bucket: INPUT_BUCKET }));
+    } catch (e) {
+        assert.fail(`S3 input bucket "${INPUT_BUCKET}" not present (run scripts/localstack-setup.sh): ${(e as Error).message}`);
+    }
+}
+
 describe("localstack e2e", () => {
     describe("sync mode (no DynamoDB)", () => {
         it("lambda only: compiles inline mainTyp and returns base64 PDF", async () => {
@@ -58,6 +77,7 @@ describe("localstack e2e", () => {
 
         it("lambda + S3: compiles inline mainTyp and stores to S3", async () => {
             if (skipSync() || skipIfNoLocalStack()) return;
+            await assertLocalStackS3Available();
             assertTypst();
             const res = await handler({
                 action: "compile",
@@ -73,6 +93,7 @@ describe("localstack e2e", () => {
 
         it("lambda + S3: compiles mainTypS3 from S3 and stores output", async () => {
             if (skipSync() || skipIfNoLocalStack()) return;
+            await assertLocalStackS3Available();
             assertTypst();
             await s3.send(
                 new PutObjectCommand({
@@ -93,6 +114,30 @@ describe("localstack e2e", () => {
             assert.strictEqual(body.status, "completed");
             assert(body.s3Url?.includes(OUTPUT_BUCKET));
         });
+
+        it("lambda + S3: stores output at custom outputKey when provided", async () => {
+            if (skipSync() || skipIfNoLocalStack()) return;
+            await assertLocalStackS3Available();
+            assertTypst();
+            const customKey = "reports/custom-output.pdf";
+            const res = await handler({
+                action: "compile",
+                mainTyp: FIXTURE_B64,
+                documentId: "sync-outputkey-1",
+                storeToS3: true,
+                outputKey: customKey,
+            });
+            assert.strictEqual(res.statusCode, 200, `expected 200, got ${res.statusCode}: ${res.body}`);
+            const body = JSON.parse(res.body);
+            assert.strictEqual(body.status, "completed");
+            assert(body.s3Url?.includes(OUTPUT_BUCKET));
+            const getRes = await s3.send(
+                new GetObjectCommand({ Bucket: OUTPUT_BUCKET, Key: customKey })
+            );
+            const outBuf = await getRes.Body?.transformToByteArray();
+            assert(outBuf && outBuf.length > 0, "Object should exist at custom key");
+            assert(outBuf[0] === 0x25 && outBuf[1] === 0x50, "Object at custom key should be PDF (%PDF)");
+        });
     });
 
     describe("async mode (DynamoDB + S3)", () => {
@@ -110,6 +155,7 @@ describe("localstack e2e", () => {
 
         it("lambda + S3: compiles inline mainTyp and stores to S3", async () => {
             if (skipAsync() || skipIfNoLocalStack()) return;
+            await assertLocalStackS3Available();
             assertTypst();
             const res = await handler({
                 action: "compile",
@@ -125,6 +171,7 @@ describe("localstack e2e", () => {
 
         it("lambda + S3: compiles mainTypS3 from S3 and stores output", async () => {
             if (skipAsync() || skipIfNoLocalStack()) return;
+            await assertLocalStackS3Available();
             assertTypst();
             await s3.send(
                 new PutObjectCommand({
@@ -148,6 +195,7 @@ describe("localstack e2e", () => {
 
         it("lambda + S3: compile → status → retrieve workflow", async () => {
             if (skipAsync() || skipIfNoLocalStack()) return;
+            await assertLocalStackS3Available();
             assertTypst();
             const docId = "async-workflow-1";
             const compileRes = await handler({
@@ -168,6 +216,30 @@ describe("localstack e2e", () => {
             assert.strictEqual(retrieveRes.statusCode, 200, retrieveRes.body);
             const retrieveBody = JSON.parse(retrieveRes.body);
             assert(retrieveBody.s3Url?.includes(OUTPUT_BUCKET));
+        });
+
+        it("lambda + S3: stores output at custom outputKey when provided", async () => {
+            if (skipAsync() || skipIfNoLocalStack()) return;
+            await assertLocalStackS3Available();
+            assertTypst();
+            const customKey = "reports/async-custom-output.pdf";
+            const res = await handler({
+                action: "compile",
+                mainTyp: FIXTURE_B64,
+                documentId: "async-outputkey-1",
+                storeToS3: true,
+                outputKey: customKey,
+            });
+            assert.strictEqual(res.statusCode, 200, `expected 200, got ${res.statusCode}: ${res.body}`);
+            const body = JSON.parse(res.body);
+            assert.strictEqual(body.status, "completed");
+            assert(body.s3Url?.includes(OUTPUT_BUCKET));
+            const getRes = await s3.send(
+                new GetObjectCommand({ Bucket: OUTPUT_BUCKET, Key: customKey })
+            );
+            const outBuf = await getRes.Body?.transformToByteArray();
+            assert(outBuf && outBuf.length > 0, "Object should exist at custom key");
+            assert(outBuf[0] === 0x25 && outBuf[1] === 0x50, "Object at custom key should be PDF (%PDF)");
         });
     });
 });

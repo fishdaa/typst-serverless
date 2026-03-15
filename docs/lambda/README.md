@@ -114,6 +114,8 @@ const result = JSON.parse(new TextDecoder().decode(Payload));
 // result.documentId = for status/retrieve
 ```
 
+You can set a custom S3 object key with `outputKey` (e.g. `outputKey: "reports/2024.pdf"`). Using the same key for multiple compilations follows normal S3 behavior: the new object overwrites the existing one at that key.
+
 ### Compile (source from S3)
 
 Upload your `main.typ` to the input bucket first, then:
@@ -171,6 +173,7 @@ const result = JSON.parse(new TextDecoder().decode(Payload));
 | mainTypS3 | Yes (compile) | `{ bucket, key }` — must use input bucket |
 | main | No | Main .typ filename (default `main.typ`); e.g. `document.typ`, `src/report.typ` |
 | storeToS3 | No | If true, store output in S3; return presigned URL |
+| outputKey | No | Custom S3 object key when storeToS3 is true (e.g. `reports/2024.pdf`). Same key overwrites per S3 behavior. |
 | outputFormat | No | `pdf` (default), `svg`, or `png` |
 | pdfStandard | No | PDF standard: `a-2b`, `a-3b`, `1.4`, `1.5`, etc. (PDF only) |
 | webhook | No | `{ url: "https://..." }` — POST completion/failure to your endpoint |

@@ -53,6 +53,18 @@ describe("lambda integration", () => {
             assert(body.error?.includes("S3") || body.error?.includes("path"));
         });
 
+        it("rejects invalid outputKey (path traversal) when storeToS3", async () => {
+            const res = await handler({
+                action: "compile",
+                mainTyp: FIXTURE_B64,
+                storeToS3: true,
+                outputKey: "../outputs/evil.pdf",
+            });
+            assert.strictEqual(res.statusCode, 400);
+            const body = JSON.parse(res.body);
+            assert(body.error?.includes("S3") || body.error?.includes("path") || body.error?.includes("invalid"));
+        });
+
         it("rejects invalid documentId format on status", async () => {
             const res = await handler({
                 action: "status",
@@ -170,6 +182,27 @@ describe("lambda integration", () => {
                     assert(buf[0] === 0x25 && buf[1] === 0x50, "Output should be valid PDF");
                 }
             }
+        });
+
+        it("compiles with storeToS3 and custom outputKey when typst and S3 available", { timeout: 15000 }, async () => {
+            if (!process.env.TYPST_OUTPUT_BUCKET) return;
+            assertTypst();
+            const customKey = "integration-test/custom-key.pdf";
+            const res = await handler({
+                action: "compile",
+                mainTyp: FIXTURE_B64,
+                documentId: `outputkey-${Date.now()}`,
+                storeToS3: true,
+                outputKey: customKey,
+            });
+            assert.strictEqual(res.statusCode, 200, res.body);
+            const body = JSON.parse(res.body);
+            assert.strictEqual(body.status, "completed");
+            assert(body.s3Url, "expected s3Url when storeToS3 and outputKey");
+            assert(
+                body.s3Url.includes(customKey) || body.s3Url.includes(encodeURIComponent(customKey)),
+                `s3Url should contain custom key "${customKey}", got: ${body.s3Url}`
+            );
         });
     });
 });

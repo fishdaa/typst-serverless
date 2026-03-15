@@ -37,6 +37,7 @@ Compile one or more documents. Same structure for single and batch: pass `docume
 | `documentId` | string | auto UUID | Custom ID |
 | `storeToS3` | boolean | false | Store output in S3; return presigned URL |
 | `outputS3` | object | — | `{ bucket, keyPrefix? }` — customer S3 bucket; requires `customerOutputBuckets` in Pulumi |
+| `outputKey` | string | — | Custom S3 object key when `storeToS3` is true (e.g. `reports/2024.pdf`). If omitted, key is `keyPrefix` + `documentId` + extension. |
 | `outputFormat` | string | `pdf` | `pdf`, `svg`, or `png` |
 | `pdfStandard` | string | — | PDF variant: `a-2b`, `a-3b`, `1.4`, `1.5`, etc. |
 | `fonts` | array | — | `[{ name, base64 }]` or `[{ name, bucket, key }]` (OTF, TTF, TTC) |
@@ -44,6 +45,8 @@ Compile one or more documents. Same structure for single and batch: pass `docume
 | `data` | string or object | — | Base64-encoded content or `{ bucket, key }` — S3 reference; written to workDir |
 | `dataFile` | string | `data.json` | Filename in workDir. Allowed: .json, .yaml, .yml, .toml, .csv, .xml, .cbor. Template uses matching Typst function. |
 | `webhook` | object | — | `{ url: "https://..." }` — POST on completion/failure (HTTPS only) |
+
+**S3 output:** When using a custom `outputKey` (or the default key from `documentId`), uploading again with the same key follows normal S3 behavior: the new object overwrites the existing one at that key.
 
 **Response (200):**
 
