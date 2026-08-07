@@ -18,6 +18,28 @@ interface ContentSource {
   base64?: string;
 }
 
+/** Prefix under which cached assets live in the assets bucket. */
+export const ASSET_PREFIX = "assets/";
+
+interface AssetPathRef {
+  bucket?: string;
+  key?: string;
+  base64?: string;
+  assetPath?: string;
+}
+
+/** Resolves an item that may reference a cached asset by path into a plain bucket/key/base64 source. */
+function resolveContentSource(item: AssetPathRef, assetsBucket: string | undefined): ContentSource {
+    if (item.assetPath) {
+        if (!assetsBucket) {
+            throw new Error("assetPath requires an assets bucket (TYPST_ASSETS_BUCKET or TYPST_INPUT_BUCKET)");
+        }
+        return { bucket: assetsBucket, key: `${ASSET_PREFIX}${item.assetPath}` };
+    }
+    if (item.bucket && item.key) return { bucket: item.bucket, key: item.key };
+    return { base64: item.base64 };
+}
+
 async function streamToString(stream: unknown): Promise<string> {
     const chunks: Uint8Array[] = [];
     const it = stream as AsyncIterable<Uint8Array>;
@@ -54,18 +76,19 @@ interface AssetItem {
   bucket?: string;
   key?: string;
   base64?: string;
+  assetPath?: string;
 }
 
 async function resolveFontsAndAssets(
     items: AssetItem[],
     workDir: string,
-    s3Client: S3Client
+    s3Client: S3Client,
+    assetsBucket: string | undefined
 ): Promise<void> {
     if (!items || !Array.isArray(items) || items.length === 0) return;
     for (const item of items) {
         const destPath = join(workDir, item.name);
-        const contentSource: ContentSource =
-      item.bucket && item.key ? { bucket: item.bucket, key: item.key } : { base64: item.base64 };
+        const contentSource = resolveContentSource(item, assetsBucket);
         await resolveFile(contentSource, destPath, s3Client);
     }
 }
@@ -76,18 +99,19 @@ interface ExtraTypItem {
     base64?: string;
     bucket?: string;
     key?: string;
+    assetPath?: string;
 }
 
 async function resolveExtraTyps(
     items: ExtraTypItem[],
     workDir: string,
-    s3Client: S3Client
+    s3Client: S3Client,
+    assetsBucket: string | undefined
 ): Promise<void> {
     if (!items || !Array.isArray(items) || items.length === 0) return;
     for (const item of items) {
         const destPath = join(workDir, item.name);
-        const contentSource: ContentSource =
-            item.bucket && item.key ? { bucket: item.bucket, key: item.key } : { base64: item.base64 };
+        const contentSource = resolveContentSource(item, assetsBucket);
         await resolveFile(contentSource, destPath, s3Client);
     }
 }
@@ -101,7 +125,8 @@ async function resolveData(
     data: unknown,
     dataFile: string,
     workDir: string,
-    s3Client: S3Client
+    s3Client: S3Client,
+    assetsBucket: string | undefined
 ): Promise<void> {
     if (!data) return;
     const fileResult = validateDataFile(dataFile);
@@ -111,10 +136,12 @@ async function resolveData(
         await writeFile(dataPath, Buffer.from(data, "base64"));
         return;
     }
-    if (typeof data === "object" && data !== null && "bucket" in data && "key" in data) {
-        const ref = data as { bucket: string; key: string };
+    if (typeof data === "object" && data !== null && ("bucket" in data && "key" in data || "assetPath" in data)) {
+        const ref = data as { bucket?: string; key?: string; assetPath?: string };
+        const src = resolveContentSource(ref, assetsBucket);
+        if (!src.bucket || !src.key) throw new Error("data must be base64 string, { bucket, key }, or { assetPath }");
         const { Body } = await withRetry<GetObjectCommandOutput>(() =>
-            s3Client.send(new GetObjectCommand({ Bucket: ref.bucket, Key: ref.key }))
+            s3Client.send(new GetObjectCommand({ Bucket: src.bucket, Key: src.key }))
         );
         const chunks: Uint8Array[] = [];
         if (Body) {
@@ -124,7 +151,7 @@ async function resolveData(
         await writeFile(dataPath, Buffer.concat(chunks));
         return;
     }
-    throw new Error("data must be base64 string or { bucket, key }");
+    throw new Error("data must be base64 string, { bucket, key }, or { assetPath }");
 }
 
 function getMainFilename(event: Record<string, unknown>): string {
@@ -137,17 +164,18 @@ function getMainFilename(event: Record<string, unknown>): string {
 
 export async function resolveMainTyp(
     event: Record<string, unknown>,
-    s3Client: S3Client
+    s3Client: S3Client,
+    assetsBucket?: string
 ): Promise<ResolveResult> {
     const workDir = join(tmpdir(), `typst-${randomUUID()}`);
     await mkdir(workDir, { recursive: true });
     const mainFilename = getMainFilename(event);
 
     const resolveRest = async (): Promise<void> => {
-        await resolveFontsAndAssets((event.fonts as AssetItem[]) || [], workDir, s3Client);
-        await resolveFontsAndAssets((event.assets as AssetItem[]) || [], workDir, s3Client);
-        await resolveExtraTyps((event.extraTyps as ExtraTypItem[]) || [], workDir, s3Client);
-        await resolveData(event.data, (event.dataFile as string) ?? "data.json", workDir, s3Client);
+        await resolveFontsAndAssets((event.fonts as AssetItem[]) || [], workDir, s3Client, assetsBucket);
+        await resolveFontsAndAssets((event.assets as AssetItem[]) || [], workDir, s3Client, assetsBucket);
+        await resolveExtraTyps((event.extraTyps as ExtraTypItem[]) || [], workDir, s3Client, assetsBucket);
+        await resolveData(event.data, (event.dataFile as string) ?? "data.json", workDir, s3Client, assetsBucket);
     };
 
     if (event.mainTyp && typeof event.mainTyp === "string") {
@@ -158,11 +186,12 @@ export async function resolveMainTyp(
         return { workDir, mainPath };
     }
 
-    if (event.mainTypS3 && typeof event.mainTypS3 === "object") {
-        const ref = event.mainTypS3 as { bucket: string; key: string };
-        const { bucket, key } = ref;
+    if ((event.mainTypS3 && typeof event.mainTypS3 === "object") || typeof event.mainTypAssetPath === "string") {
+        const ref = (event.mainTypS3 as { bucket?: string; key?: string } | undefined) || {};
+        const src = resolveContentSource({ ...ref, assetPath: event.mainTypAssetPath as string | undefined }, assetsBucket);
+        if (!src.bucket || !src.key) throw new Error("mainTypS3 must be { bucket, key }");
         const { Body } = await withRetry<GetObjectCommandOutput>(() =>
-            s3Client.send(new GetObjectCommand({ Bucket: bucket, Key: key }))
+            s3Client.send(new GetObjectCommand({ Bucket: src.bucket, Key: src.key }))
         );
         const content = Body ? await streamToString(Body as AsyncIterable<Uint8Array>) : "";
         const mainPath = join(workDir, mainFilename);
@@ -171,5 +200,5 @@ export async function resolveMainTyp(
         return { workDir, mainPath };
     }
 
-    throw new Error("mainTyp or mainTypS3 required");
+    throw new Error("mainTyp, mainTypS3, or mainTypAssetPath required");
 }

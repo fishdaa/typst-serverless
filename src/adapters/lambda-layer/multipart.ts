@@ -131,3 +131,68 @@ export function isMultipartFormData(contentType: string | undefined): boolean {
     if (!contentType || typeof contentType !== "string") return false;
     return contentType.toLowerCase().trim().startsWith("multipart/form-data");
 }
+
+export interface MultipartAssetUpload {
+    assetPath: string;
+    base64: string;
+    contentType?: string;
+}
+
+/**
+ * Parse multipart/form-data buffer into a single cached-asset upload.
+ * Part names: file | asset = the file content (required). Fields: assetPath (required,
+ * defaults to the uploaded filename), contentType.
+ */
+export function parseMultipartAssetBody(
+    bodyBuffer: Buffer,
+    contentType: string
+): Promise<MultipartAssetUpload> {
+    return new Promise((resolve, reject) => {
+        const fields: Record<string, string> = {};
+        let file: { name: string; base64: string; contentType?: string } | null = null;
+
+        const busboy = Busboy({
+            headers: { "content-type": contentType },
+            limits: { fileSize: 10 * 1024 * 1024 },
+        });
+
+        busboy.on("field", (name: string, value: string) => {
+            fields[name] = value;
+        });
+
+        busboy.on("file", (fieldname: string, stream: NodeJS.ReadableStream, info: { filename?: string; mimeType?: string }) => {
+            const chunks: Buffer[] = [];
+            stream.on("data", (chunk: Buffer) => chunks.push(chunk));
+            stream.on("end", () => {
+                if (file != null) {
+                    reject(new Error("Only one file allowed per asset upload"));
+                    return;
+                }
+                file = {
+                    name: info.filename || fieldname || "asset",
+                    base64: Buffer.concat(chunks).toString("base64"),
+                    contentType: info.mimeType,
+                };
+            });
+            stream.on("error", (err: Error) => reject(err));
+        });
+
+        busboy.on("finish", () => {
+            if (!file) {
+                reject(new Error("Missing required part: file or asset"));
+                return;
+            }
+            const assetPath = fields.assetPath || file.name;
+            resolve({
+                assetPath,
+                base64: file.base64,
+                ...((fields.contentType || file.contentType) && { contentType: fields.contentType || file.contentType }),
+            });
+        });
+
+        busboy.on("error", (err: Error) => reject(err));
+
+        const readable = Readable.from(bodyBuffer);
+        readable.pipe(busboy);
+    });
+}

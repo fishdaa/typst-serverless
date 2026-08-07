@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 set -e
 export TYPST_OUTPUT_BUCKET=typst-output-test
+export TYPST_ASSETS_BUCKET=typst-input-test
 export TYPST_PATH="${TYPST_PATH:-typst}"
 
 # Only set TYPST_AWS_ENDPOINT when LocalStack is reachable (S3 tests will skip otherwise)

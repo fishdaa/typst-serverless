@@ -29,7 +29,7 @@ describe("resolve-input/resolveMainTyp", () => {
     it("throws when neither mainTyp nor mainTypS3 is provided", async () => {
         await assert.rejects(
             () => resolveMainTyp({}, NEVER_CALLED),
-            /mainTyp or mainTypS3 required/
+            /mainTyp, mainTypS3, or mainTypAssetPath required/
         );
     });
 
@@ -99,7 +99,7 @@ describe("resolve-input/resolveMainTyp", () => {
         const b64 = Buffer.from("#hello").toString("base64");
         await assert.rejects(
             () => resolveMainTyp({ mainTyp: b64, data: 12345 }, NEVER_CALLED),
-            /data must be base64 string or \{ bucket, key \}/
+            /data must be base64 string, \{ bucket, key \}, or \{ assetPath \}/
         );
     });
 

@@ -1,6 +1,6 @@
 /**
  * Lambda handler for Typst Serverless.
- * Actions: compile, status, retrieve, batch
+ * Actions: compile, status, retrieve, batch, uploadasset, listassets, deleteasset
  */
 import { compile } from "@/core/compile.js";
 import { createInMemoryState } from "@/core/state.js";
@@ -14,12 +14,14 @@ import {
     validateBatchEvent,
     validateDocumentId,
     validateData,
+    validateAssetPath,
+    validateS3Ref,
 } from "@/core/validate.js";
 import { validateAssets } from "@/core/assets.js";
-import { resolveMainTyp } from "@/adapters/lambda-layer/resolve-input.js";
+import { resolveMainTyp, ASSET_PREFIX } from "@/adapters/lambda-layer/resolve-input.js";
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocumentClient, QueryCommand } from "@aws-sdk/lib-dynamodb";
-import { S3Client, PutObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
+import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand, ListObjectsV2Command, CopyObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { SQSClient, SendMessageCommand } from "@aws-sdk/client-sqs";
 import { rmSync } from "node:fs";
@@ -31,6 +33,7 @@ import { randomUUID } from "node:crypto";
 const TYPST_PATH = process.env.TYPST_PATH || "/opt/bin/typst";
 const STATE_TABLE = process.env.TYPST_STATE_TABLE || "typst-documents";
 const OUTPUT_BUCKET = process.env.TYPST_OUTPUT_BUCKET;
+const ASSETS_BUCKET = process.env.TYPST_ASSETS_BUCKET || process.env.TYPST_INPUT_BUCKET;
 const PRESIGNED_EXPIRY = parseInt(process.env.TYPST_PRESIGNED_EXPIRY || "3600", 10);
 
 const endpoint = process.env.TYPST_AWS_ENDPOINT || process.env.AWS_ENDPOINT_URL;
@@ -104,7 +107,14 @@ interface LambdaEvent {
   async?: boolean;
   mainTyp?: string;
   mainTypS3?: { bucket: string; key: string };
+  mainTypAssetPath?: string;
   main?: string;
+  /** Cache-asset upload/list/delete fields (uploadasset/deleteasset actions) */
+  assetPath?: string;
+  base64?: string;
+  bucket?: string;
+  key?: string;
+  contentType?: string;
   /** Optional extra .typ sources for #include / modules: { name, base64? } or { name, bucket, key } */
   extraTyps?: Array<{ name: string; base64?: string; bucket?: string; key?: string }>;
   documentId?: string;
@@ -145,6 +155,9 @@ export async function handler(event: LambdaEvent, _context?: unknown): Promise<{
         if (action === "retrieve") return await handleRetrieve(event);
         if (action === "batch") return await handleBatch(event);
         if (action === "batchstatus") return await handleBatchStatus(String(event.documentId || event.batchId || ""));
+        if (action === "uploadasset") return await handleUploadAsset(event);
+        if (action === "listassets") return await handleListAssets(event);
+        if (action === "deleteasset") return await handleDeleteAsset(event);
         return lambdaResponse(400, { error: `Unknown action: ${action}` });
     } catch (err) {
         if (!process.env.VITEST) console.error(err);
@@ -196,7 +209,7 @@ async function handleCompile(event: LambdaEvent) {
         });
         await state.update(documentId, { status: "compiling" });
 
-        const { workDir: wd, mainPath } = await resolveMainTyp(event, s3);
+        const { workDir: wd, mainPath } = await resolveMainTyp(event, s3, ASSETS_BUCKET);
         workDir = wd;
         const format = (event.outputFormat || event.format || "pdf").toLowerCase();
         const ext = ["pdf", "svg", "png"].includes(format) ? format : "pdf";
@@ -477,6 +490,93 @@ async function handleSqs(event: LambdaEvent) {
         }
     }
     return lambdaResponse(200, { processed: records.length });
+}
+
+function assetKeyFor(assetPath: string): string {
+    return `${ASSET_PREFIX}${assetPath}`;
+}
+
+/**
+ * Upload (or register) a reusable asset, cached in S3 under a stable path.
+ * Provide either `base64` (uploads fresh bytes) or `bucket`+`key` (registers an
+ * existing S3 object under the assetPath without copying it).
+ */
+async function handleUploadAsset(event: LambdaEvent) {
+    const pathCheck = validateAssetPath(event.assetPath);
+    if (!pathCheck.valid) return lambdaResponse(400, { error: pathCheck.error });
+    const assetPath = event.assetPath as string;
+
+    const hasBase64 = typeof event.base64 === "string" && event.base64.length > 0;
+    const hasS3Ref = event.bucket != null && event.key != null;
+    if (!hasBase64 && !hasS3Ref) {
+        return lambdaResponse(400, { error: "Provide base64 or bucket+key" });
+    }
+    if (hasBase64 && hasS3Ref) {
+        return lambdaResponse(400, { error: "Provide base64 or bucket+key, not both" });
+    }
+
+    if (hasS3Ref) {
+        const refCheck = validateS3Ref({ bucket: event.bucket, key: event.key });
+        if (!refCheck.valid) return lambdaResponse(400, { error: refCheck.error });
+        // Register-in-place: copy the referenced object into the assets bucket so
+        // listing/deleting/resolving by assetPath stays consistent regardless of source.
+        if (!ASSETS_BUCKET) {
+            return lambdaResponse(503, { error: "Assets bucket not configured (TYPST_ASSETS_BUCKET or TYPST_INPUT_BUCKET)" });
+        }
+        await s3.send(
+            new CopyObjectCommand({
+                Bucket: ASSETS_BUCKET,
+                Key: assetKeyFor(assetPath),
+                CopySource: `${event.bucket}/${encodeURIComponent(event.key as string)}`,
+                ...(event.contentType && { ContentType: event.contentType, MetadataDirective: "REPLACE" }),
+            })
+        );
+        return lambdaResponse(200, { assetPath });
+    }
+
+    if (!ASSETS_BUCKET) {
+        return lambdaResponse(503, { error: "Assets bucket not configured (TYPST_ASSETS_BUCKET or TYPST_INPUT_BUCKET)" });
+    }
+    const buffer = Buffer.from(event.base64 as string, "base64");
+    await s3.send(
+        new PutObjectCommand({
+            Bucket: ASSETS_BUCKET,
+            Key: assetKeyFor(assetPath),
+            Body: buffer,
+            ...(event.contentType && { ContentType: event.contentType }),
+        })
+    );
+    return lambdaResponse(200, { assetPath, size: buffer.length });
+}
+
+/** List cached assets under an optional path prefix. */
+async function handleListAssets(event: LambdaEvent) {
+    if (!ASSETS_BUCKET) {
+        return lambdaResponse(503, { error: "Assets bucket not configured (TYPST_ASSETS_BUCKET or TYPST_INPUT_BUCKET)" });
+    }
+    const prefix = typeof event.prefix === "string" && event.prefix.length > 0
+        ? `${ASSET_PREFIX}${event.prefix}`
+        : ASSET_PREFIX;
+    const { Contents } = await s3.send(
+        new ListObjectsV2Command({ Bucket: ASSETS_BUCKET, Prefix: prefix })
+    );
+    const assets = (Contents || []).map((obj) => ({
+        assetPath: (obj.Key || "").slice(ASSET_PREFIX.length),
+        size: obj.Size,
+        lastModified: obj.LastModified,
+    }));
+    return lambdaResponse(200, { assets });
+}
+
+/** Delete a cached asset by path. */
+async function handleDeleteAsset(event: LambdaEvent) {
+    const pathCheck = validateAssetPath(event.assetPath);
+    if (!pathCheck.valid) return lambdaResponse(400, { error: pathCheck.error });
+    if (!ASSETS_BUCKET) {
+        return lambdaResponse(503, { error: "Assets bucket not configured (TYPST_ASSETS_BUCKET or TYPST_INPUT_BUCKET)" });
+    }
+    await s3.send(new DeleteObjectCommand({ Bucket: ASSETS_BUCKET, Key: assetKeyFor(event.assetPath as string) }));
+    return lambdaResponse(200, { assetPath: event.assetPath, deleted: true });
 }
 
 async function handleBatch(event: LambdaEvent) {

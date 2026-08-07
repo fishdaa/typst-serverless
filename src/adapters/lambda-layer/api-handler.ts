@@ -7,6 +7,7 @@ import { handler as lambdaHandler } from "./handler.js";
 import { validateRestPayloadSize, validateDocumentId } from "@/core/validate.js";
 import {
     parseMultipartCompileBody,
+    parseMultipartAssetBody,
     isMultipartFormData,
 } from "./multipart.js";
 
@@ -51,7 +52,7 @@ function parseApiEvent(event: Record<string, unknown>) {
     const path = event.path as string | undefined;
     const routeKey = (event.routeKey as string) || (reqCtx?.http?.method + " " + (rawPath || path || ""));
     const pathParams = (event.pathParameters as Record<string, string>) || {};
-    const id = pathParams.id || pathParams.proxy;
+    const id = pathParams.id || pathParams.path || pathParams.proxy;
     const contentType = getContentType(event);
 
     return { bodyBuffer, bodyStr, routeKey, pathParams, id, contentType };
@@ -91,6 +92,15 @@ export async function handler(event: Record<string, unknown>): Promise<{
             return await handleBatchStatus(id);
         }
         return statusRes;
+    }
+    if (method === "POST" && path === "/assets") {
+        return await handleUploadAsset(bodyBuffer, bodyStr, contentType);
+    }
+    if (method === "GET" && path === "/assets") {
+        return await handleListAssets(event);
+    }
+    if (method === "DELETE" && path?.startsWith("/assets/") && id) {
+        return await handleDeleteAsset(id);
     }
 
     return httpResponse(404, { error: "Not found" });
@@ -151,6 +161,56 @@ async function handleBatchStatus(batchId: string) {
     const res = await lambdaHandler({
         action: "batchstatus",
         batchId,
+    } as Parameters<typeof lambdaHandler>[0], {});
+    return toHttpResponse(res);
+}
+
+async function handleUploadAsset(
+    bodyBuffer: Buffer | null,
+    bodyStr: string | null,
+    contentType: string | undefined
+) {
+    if (!bodyBuffer && !bodyStr) {
+        return httpResponse(400, { error: "Request body is required" });
+    }
+
+    if (bodyBuffer && contentType && isMultipartFormData(contentType)) {
+        try {
+            const asset = await parseMultipartAssetBody(bodyBuffer, contentType);
+            const res = await lambdaHandler({ ...asset, action: "uploadasset" } as Parameters<typeof lambdaHandler>[0], {});
+            return toHttpResponse(res);
+        } catch (err) {
+            const message = err instanceof Error ? err.message : "Invalid multipart body";
+            return httpResponse(400, { error: message });
+        }
+    }
+
+    if (!bodyStr || bodyStr.trim().length === 0) {
+        return httpResponse(400, { error: "Request body is required" });
+    }
+    let payload: Record<string, unknown>;
+    try {
+        payload = JSON.parse(bodyStr);
+    } catch {
+        return httpResponse(400, { error: "Invalid JSON body" });
+    }
+    const res = await lambdaHandler({ ...payload, action: "uploadasset" } as Parameters<typeof lambdaHandler>[0], {});
+    return toHttpResponse(res);
+}
+
+async function handleListAssets(event: Record<string, unknown>) {
+    const query = (event.queryStringParameters as Record<string, string> | undefined) || {};
+    const res = await lambdaHandler({
+        action: "listassets",
+        ...(query.prefix && { prefix: query.prefix }),
+    } as Parameters<typeof lambdaHandler>[0], {});
+    return toHttpResponse(res);
+}
+
+async function handleDeleteAsset(assetPath: string) {
+    const res = await lambdaHandler({
+        action: "deleteasset",
+        assetPath,
     } as Parameters<typeof lambdaHandler>[0], {});
     return toHttpResponse(res);
 }

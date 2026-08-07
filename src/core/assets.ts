@@ -3,7 +3,7 @@
  * Typst-supported formats only: PNG, JPEG, GIF, WebP, SVG for images;
  * OTF, TTF, TTC for fonts.
  */
-import { validateS3Key } from "./validate.js";
+import { validateS3Key, validateAssetPath } from "./validate.js";
 
 /** Allowed image extensions (lowercase) */
 export const ALLOWED_IMAGE_EXTENSIONS = [".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg"];
@@ -57,7 +57,7 @@ export function validateAssetRef(
  * Validate assets array.
  */
 export function validateAssets(
-    assets: Array<{ name?: string; bucket?: string; key?: string; base64?: string }> | null | undefined,
+    assets: Array<{ name?: string; bucket?: string; key?: string; base64?: string; assetPath?: string }> | null | undefined,
     type: AssetType = "image"
 ) {
     if (!assets || !Array.isArray(assets)) return { valid: true as const };
@@ -76,6 +76,9 @@ export function validateAssets(
         if (a.bucket && a.key) {
             const refResult = validateAssetRef({ bucket: a.bucket, key: a.key }, type);
             if (!refResult.valid) return { valid: false as const, error: `Asset[${i}]: ${refResult.error}` };
+        } else if (a.assetPath && typeof a.assetPath === "string") {
+            const pathResult = validateAssetPath(a.assetPath);
+            if (!pathResult.valid) return { valid: false as const, error: `Asset[${i}]: ${pathResult.error}` };
         } else if (a.base64 && typeof a.base64 === "string") {
             const ext = getExtension(a.name);
             const allowed = type === "image" ? ALLOWED_IMAGE_EXTENSIONS : ALLOWED_FONT_EXTENSIONS;
@@ -83,7 +86,7 @@ export function validateAssets(
                 return { valid: false as const, error: `Asset[${i}].name must have allowed extension: ${allowed.join(", ")}` };
             }
         } else {
-            return { valid: false as const, error: `Asset[${i}]: provide bucket+key or base64` };
+            return { valid: false as const, error: `Asset[${i}]: provide bucket+key, assetPath, or base64` };
         }
     }
     return { valid: true as const };

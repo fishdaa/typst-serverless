@@ -121,9 +121,22 @@ export function validateData(data: unknown, dataFile?: unknown): ValidationResul
     if (!fileResult.valid) return fileResult;
     if (typeof data === "string") return { valid: true };
     if (typeof data === "object" && data !== null && !Array.isArray(data)) {
+        const d = data as Record<string, unknown>;
+        if (typeof d.assetPath === "string") return validateAssetPath(d.assetPath);
         return validateS3Ref(data);
     }
-    return { valid: false, error: "data must be base64 string or { bucket, key }" };
+    return { valid: false, error: "data must be base64 string, { bucket, key }, or { assetPath }" };
+}
+
+/** Valid asset path: no path traversal, no leading slash, ASCII only, 1-1024 chars. */
+export function validateAssetPath(assetPath: unknown): ValidationResult {
+    if (!assetPath || typeof assetPath !== "string") {
+        return { valid: false, error: "assetPath is required" };
+    }
+    if (!isValidS3Key(assetPath)) {
+        return { valid: false, error: "assetPath invalid: no path traversal (..), no leading slash, ASCII only" };
+    }
+    return { valid: true };
 }
 
 /**
@@ -196,12 +209,17 @@ export function validateExtraTyps(extraTyps: unknown): ValidationResult {
         if (!nameResult.valid) return { valid: false, error: `extraTyps[${i}]: ${nameResult.error}` };
         const hasBase64 = o.base64 != null && typeof o.base64 === "string";
         const hasS3 = o.bucket != null && o.key != null && typeof o.bucket === "string" && typeof o.key === "string";
-        if (!hasBase64 && !hasS3) {
-            return { valid: false, error: `extraTyps[${i}]: provide base64 or bucket+key` };
+        const hasAssetPath = typeof o.assetPath === "string";
+        if (!hasBase64 && !hasS3 && !hasAssetPath) {
+            return { valid: false, error: `extraTyps[${i}]: provide base64, bucket+key, or assetPath` };
         }
         if (hasS3) {
             const s3 = validateS3Ref({ bucket: o.bucket, key: o.key });
             if (!s3.valid) return { valid: false, error: `extraTyps[${i}]: ${s3.error}` };
+        }
+        if (hasAssetPath) {
+            const ap = validateAssetPath(o.assetPath);
+            if (!ap.valid) return { valid: false, error: `extraTyps[${i}]: ${ap.error}` };
         }
     }
     return { valid: true };
@@ -217,15 +235,20 @@ export function validateCompileEvent(event: unknown): ValidationResult {
     const e = event as Record<string, unknown>;
     const hasInline = e.mainTyp && typeof e.mainTyp === "string";
     const hasS3 = e.mainTypS3 && typeof e.mainTypS3 === "object";
-    if (!hasInline && !hasS3) {
-        return { valid: false, error: "mainTyp (base64) or mainTypS3 (bucket, key) is required" };
+    const hasAssetPath = typeof e.mainTypAssetPath === "string";
+    if (!hasInline && !hasS3 && !hasAssetPath) {
+        return { valid: false, error: "mainTyp (base64), mainTypS3 (bucket, key), or mainTypAssetPath is required" };
     }
-    if (hasInline && hasS3) {
-        return { valid: false, error: "Provide mainTyp or mainTypS3, not both" };
+    if ([hasInline, hasS3, hasAssetPath].filter(Boolean).length > 1) {
+        return { valid: false, error: "Provide only one of mainTyp, mainTypS3, mainTypAssetPath" };
     }
     if (hasS3) {
         const s3 = validateS3Ref(e.mainTypS3);
         if (!s3.valid) return s3;
+    }
+    if (hasAssetPath) {
+        const ap = validateAssetPath(e.mainTypAssetPath);
+        if (!ap.valid) return ap;
     }
     if (e.main !== undefined) {
         const mainResult = validateMainTyp(e.main);

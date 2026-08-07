@@ -103,6 +103,71 @@ describe("lambda integration", () => {
             const body = JSON.parse(res.body);
             assert(body.error?.includes("main") || body.error?.includes("path"));
         });
+
+        it("rejects compile with both mainTyp and mainTypAssetPath", async () => {
+            const res = await handler({
+                action: "compile",
+                mainTyp: FIXTURE_B64,
+                mainTypAssetPath: "templates/main.typ",
+            });
+            assert.strictEqual(res.statusCode, 400);
+        });
+
+        it("rejects asset with path traversal in assetPath", async () => {
+            const res = await handler({
+                action: "compile",
+                mainTyp: FIXTURE_B64,
+                assets: [{ name: "logo.png", assetPath: "../etc/logo.png" }],
+            });
+            assert.strictEqual(res.statusCode, 400);
+        });
+    });
+
+    describe("asset cache (no AWS)", () => {
+        it("rejects uploadasset without assetPath", async () => {
+            const res = await handler({ action: "uploadasset", base64: "dGVzdA==" });
+            assert.strictEqual(res.statusCode, 400);
+            const body = JSON.parse(res.body);
+            assert(body.error?.includes("assetPath"));
+        });
+
+        it("rejects uploadasset with path traversal in assetPath", async () => {
+            const res = await handler({ action: "uploadasset", assetPath: "../evil.png", base64: "dGVzdA==" });
+            assert.strictEqual(res.statusCode, 400);
+        });
+
+        it("rejects uploadasset without base64 or bucket+key", async () => {
+            const res = await handler({ action: "uploadasset", assetPath: "logo.png" });
+            assert.strictEqual(res.statusCode, 400);
+            const body = JSON.parse(res.body);
+            assert(body.error?.includes("base64") || body.error?.includes("bucket"));
+        });
+
+        it("rejects uploadasset with both base64 and bucket+key", async () => {
+            const res = await handler({
+                action: "uploadasset",
+                assetPath: "logo.png",
+                base64: "dGVzdA==",
+                bucket: "b",
+                key: "k",
+            });
+            assert.strictEqual(res.statusCode, 400);
+        });
+
+        it("returns 503 for uploadasset when no assets bucket configured", async () => {
+            const res = await handler({ action: "uploadasset", assetPath: "logo.png", base64: "dGVzdA==" });
+            assert.strictEqual(res.statusCode, 503);
+        });
+
+        it("returns 503 for listassets when no assets bucket configured", async () => {
+            const res = await handler({ action: "listassets" });
+            assert.strictEqual(res.statusCode, 503);
+        });
+
+        it("rejects deleteasset with invalid assetPath", async () => {
+            const res = await handler({ action: "deleteasset", assetPath: "../evil.png" });
+            assert.strictEqual(res.statusCode, 400);
+        });
     });
 
     describe("compile (requires typst + AWS)", () => {

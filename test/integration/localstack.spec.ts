@@ -242,4 +242,71 @@ describe("localstack e2e", () => {
             assert(outBuf[0] === 0x25 && outBuf[1] === 0x50, "Object at custom key should be PDF (%PDF)");
         });
     });
+
+    describe("asset cache (S3)", () => {
+        it("uploads, lists, resolves by assetPath in compile, then deletes", async () => {
+            if (skipIfNoLocalStack()) return;
+            await assertLocalStackS3Available();
+            assertTypst();
+            const assetPath = `cache-test/main-${Date.now()}.typ`;
+
+            const uploadRes = await handler({
+                action: "uploadasset",
+                assetPath,
+                base64: FIXTURE_B64,
+                contentType: "text/plain",
+            });
+            assert.strictEqual(uploadRes.statusCode, 200, uploadRes.body);
+            const uploadBody = JSON.parse(uploadRes.body);
+            assert.strictEqual(uploadBody.assetPath, assetPath);
+
+            const listRes = await handler({ action: "listassets", prefix: "cache-test/" });
+            assert.strictEqual(listRes.statusCode, 200, listRes.body);
+            const listBody = JSON.parse(listRes.body);
+            assert(listBody.assets.some((a: { assetPath: string }) => a.assetPath === assetPath));
+
+            const compileRes = await handler({
+                action: "compile",
+                mainTypAssetPath: assetPath,
+                documentId: `cache-compile-${Date.now()}`,
+            });
+            assert.strictEqual(compileRes.statusCode, 200, compileRes.body);
+            const compileBody = JSON.parse(compileRes.body);
+            assert.strictEqual(compileBody.status, "completed");
+
+            const deleteRes = await handler({ action: "deleteasset", assetPath });
+            assert.strictEqual(deleteRes.statusCode, 200, deleteRes.body);
+
+            const listAfterRes = await handler({ action: "listassets", prefix: "cache-test/" });
+            const listAfterBody = JSON.parse(listAfterRes.body);
+            assert(!listAfterBody.assets.some((a: { assetPath: string }) => a.assetPath === assetPath));
+        });
+
+        it("registers an existing S3 object under an assetPath via bucket+key", async () => {
+            if (skipIfNoLocalStack()) return;
+            await assertLocalStackS3Available();
+            const sourceKey = `sources/register-src-${Date.now()}.typ`;
+            await s3.send(
+                new PutObjectCommand({ Bucket: INPUT_BUCKET, Key: sourceKey, Body: FIXTURE_TYP, ContentType: "text/plain" })
+            );
+            const assetPath = `cache-test/registered-${Date.now()}.typ`;
+
+            const res = await handler({
+                action: "uploadasset",
+                assetPath,
+                bucket: INPUT_BUCKET,
+                key: sourceKey,
+            });
+            assert.strictEqual(res.statusCode, 200, res.body);
+
+            const getRes = await s3.send(
+                new GetObjectCommand({ Bucket: INPUT_BUCKET, Key: `assets/${assetPath}` })
+            );
+            const buf = await getRes.Body?.transformToByteArray();
+            assert(buf);
+            assert.strictEqual(Buffer.from(buf).toString("utf-8"), FIXTURE_TYP);
+
+            await handler({ action: "deleteasset", assetPath });
+        });
+    });
 });

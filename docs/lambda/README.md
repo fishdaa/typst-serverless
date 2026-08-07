@@ -168,9 +168,10 @@ const result = JSON.parse(new TextDecoder().decode(Payload));
 
 | Field | Required | Description |
 |-------|----------|-------------|
-| action | No | `compile` (default), `status`, `retrieve`, `batch` |
-| mainTyp | Yes (compile), mutually exclusive with mainTypS3 | Base64-encoded .typ source |
-| mainTypS3 | Yes (compile), mutually exclusive with mainTyp | `{ bucket, key }` — must use input bucket |
+| action | No | `compile` (default), `status`, `retrieve`, `batch`, `uploadasset`, `listassets`, `deleteasset` |
+| mainTyp | Yes (compile), mutually exclusive with mainTypS3/mainTypAssetPath | Base64-encoded .typ source |
+| mainTypS3 | Yes (compile), mutually exclusive with mainTyp/mainTypAssetPath | `{ bucket, key }` — must use input bucket |
+| mainTypAssetPath | Yes (compile), mutually exclusive with mainTyp/mainTypS3 | Path of a cached asset (see [Asset cache](#asset-cache)) |
 | main | No | Main .typ filename (default `main.typ`); e.g. `document.typ`, `src/report.typ` |
 | storeToS3 | No | If true, store output in S3; return presigned URL |
 | outputKey | No | Custom S3 object key when storeToS3 is true (e.g. `reports/2024.pdf`). Same key overwrites per S3 behavior. |
@@ -249,6 +250,40 @@ const { Payload } = await lambda.send(new InvokeCommand({
 const result = JSON.parse(new TextDecoder().decode(Payload));
 // result.results = [{ documentId, status }, { documentId, status, s3Url }]
 ```
+
+## Asset cache
+
+Upload a font, image, `.typ` template, or data file once and reference it by path in later compile jobs, instead of re-sending the same bytes (or a fresh `{ bucket, key }`) every time. Backed by S3 only — no separate database.
+
+```javascript
+// Upload once
+await lambda.send(new InvokeCommand({
+  FunctionName: "typst-compile-xxx",
+  Payload: JSON.stringify({
+    action: "uploadasset",
+    assetPath: "brand/logo.png",
+    base64: Buffer.from(logoBytes).toString("base64"),
+    contentType: "image/png",
+  }),
+}));
+
+// Reference it in any later compile
+await lambda.send(new InvokeCommand({
+  FunctionName: "typst-compile-xxx",
+  Payload: JSON.stringify({
+    action: "compile",
+    mainTyp: Buffer.from("#image(\"logo.png\")\n").toString("base64"),
+    assets: [{ name: "logo.png", assetPath: "brand/logo.png" }],
+  }),
+}));
+```
+
+- **uploadasset** — `assetPath` (required) + either `base64` (fresh upload) or `bucket`+`key` (registers/copies an existing S3 object under `assetPath`); optional `contentType`.
+- **listassets** — optional `prefix`; returns `{ assets: [{ assetPath, size, lastModified }] }`.
+- **deleteasset** — `assetPath` (required).
+- Any field that already accepts `{ bucket, key }` (`mainTypS3`, `fonts[]`/`assets[]`/`extraTyps[]` items, `data`) also accepts `{ assetPath }`; `mainTyp` has the sibling field `mainTypAssetPath`.
+- Requires `TYPST_ASSETS_BUCKET` (or falls back to `TYPST_INPUT_BUCKET`) to be configured; returns 503 otherwise.
+- REST equivalents: `POST /assets`, `GET /assets`, `DELETE /assets/{path}` — see [docs/api/](../api/README.md#post-assets).
 
 ## LocalStack testing
 

@@ -121,8 +121,8 @@ const policy = new aws.iam.RolePolicy("typst-lambda-policy", {
         },
         {
           Effect: "Allow",
-          Action: ["s3:GetObject"],
-          Resource: `${inArn}/*`,
+          Action: ["s3:GetObject", "s3:PutObject", "s3:DeleteObject", "s3:ListBucket"],
+          Resource: [inArn, `${inArn}/*`],
         },
       ];
       if (queueArn) {
@@ -162,6 +162,7 @@ const lambdaEnv: Record<string, pulumi.Output<string>> = {
   TYPST_STATE_TABLE: table.name,
   TYPST_OUTPUT_BUCKET: outputBucket.id,
   TYPST_INPUT_BUCKET: inputBucket.id,
+  TYPST_ASSETS_BUCKET: inputBucket.id,
   TYPST_PATH: pulumi.output("/opt/bin/typst"),
 };
 if (enableSqs && batchQueue) {
@@ -218,6 +219,24 @@ if (enableApiGateway) {
     target: pulumi.interpolate`integrations/${integration.id}`,
   });
 
+  const uploadAssetRoute = new aws.apigatewayv2.Route("upload-asset-route", {
+    apiId: api.id,
+    routeKey: "POST /assets",
+    target: pulumi.interpolate`integrations/${integration.id}`,
+  });
+
+  const listAssetsRoute = new aws.apigatewayv2.Route("list-assets-route", {
+    apiId: api.id,
+    routeKey: "GET /assets",
+    target: pulumi.interpolate`integrations/${integration.id}`,
+  });
+
+  const deleteAssetRoute = new aws.apigatewayv2.Route("delete-asset-route", {
+    apiId: api.id,
+    routeKey: "DELETE /assets/{path+}",
+    target: pulumi.interpolate`integrations/${integration.id}`,
+  });
+
   const stage = new aws.apigatewayv2.Stage("typst-api-stage", {
     apiId: api.id,
     name: "$default",
@@ -240,5 +259,6 @@ export const functionArn = lambda.arn;
 export const stateTableName = table.name;
 export const outputBucketName = outputBucket.id;
 export const inputBucketName = inputBucket.id;
+export const assetsBucketName = inputBucket.id;
 export const apiUrl = apiUrlOutput;
 export const batchQueueUrl = batchQueue?.url;
