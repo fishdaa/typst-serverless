@@ -53,6 +53,7 @@ One .typ file per request. Part names:
 | `documentId` | No | Form field: custom document ID |
 | `storeToS3` | No | Form field: `true` or `1` to store output in S3 |
 | `outputFormat` | No | Form field: `pdf`, `svg`, or `png` |
+| `pdfStandard` | No | Form field: PDF variant (`a-2b`, `a-3b`, `1.4`, `1.5`, etc.); PDF only |
 | `main` (field) | No | Form field: main filename override (e.g. `report.typ`); default `main.typ` |
 | `asset` / `assets` | No | File part(s): images (PNG, JPEG, etc.) |
 | `font` / `fonts` | No | File part(s): fonts (OTF, TTF, TTC) |

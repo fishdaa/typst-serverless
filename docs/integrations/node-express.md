@@ -77,6 +77,37 @@ const result = JSON.parse(new TextDecoder().decode(Payload));
 // result.pdf = base64 PDF (inline) or result.s3Url (if storeToS3)
 ```
 
+## REST API (HTTP POST)
+
+If API Gateway is enabled ([docs/api/](../api/README.md)), skip the AWS SDK entirely and call the HTTP endpoint:
+
+```javascript
+app.post("/compile", express.json(), async (req, res) => {
+  const apiUrl = process.env.TYPST_API_URL;
+  const apiRes = await fetch(`${apiUrl}/compile`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      documents: [{
+        mainTyp: Buffer.from(req.body.content).toString("base64"),
+        storeToS3: !!req.body.storeToS3,
+      }],
+    }),
+  });
+  const result = await apiRes.json();
+
+  if (result.s3Url) {
+    return res.json({ s3Url: result.s3Url });
+  }
+  if (result.pdf) {
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", "attachment; filename=\"output.pdf\"");
+    return res.send(Buffer.from(result.pdf, "base64"));
+  }
+  res.status(500).json({ error: result.error || "Unknown error" });
+});
+```
+
 ## Dynamic content
 
 Pass template data via query params or body, write a `.typ` file with `#set text(...)`, then compile. For advanced templates, use `main.typ` that `#include` other files or use typst’s data-passing features.

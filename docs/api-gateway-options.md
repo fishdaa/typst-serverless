@@ -120,6 +120,7 @@ When `Content-Type` is `multipart/form-data`, POST /compile accepts a **single**
 | `documentId` | No | Field | Custom document ID |
 | `storeToS3` | No | Field | `true` or `1` to store output in S3 |
 | `outputFormat` | No | Field | `pdf`, `svg`, `png` |
+| `pdfStandard` | No | Field | PDF variant (`a-2b`, `a-3b`, `1.4`, `1.5`, etc.); PDF only |
 | `main` (field) | No | Field | Main filename override (default `main.typ`) |
 | `asset` / `assets` | No | File(s) | Images (PNG, JPEG, GIF, WebP, SVG) |
 | `font` / `fonts` | No | File(s) | Fonts (OTF, TTF, TTC) |
@@ -166,7 +167,6 @@ curl "$API_URL/status/doc-123"
 |--------|---------|
 | 400 | Invalid request (bad JSON, missing/invalid params) |
 | 404 | Document or batch not found |
-| 409 | Document not completed (retrieve) |
 | 413 | Body exceeds 10MB |
 | 500 | Internal error |
 

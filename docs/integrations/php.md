@@ -1,6 +1,76 @@
 # PHP
 
-Generate PDFs from PHP (plain, Laravel, Slim) by running `typst-serverless` via `proc_open` or `shell_exec`.
+Generate PDFs from PHP (plain, Laravel, Slim) via the REST API, the AWS SDK (direct Lambda invoke), or by running `typst-serverless` via `proc_open` or `shell_exec`.
+
+## REST API (Guzzle)
+
+If you've deployed the Lambda stack with API Gateway enabled ([docs/api/](../api/README.md)), the simplest integration is plain HTTP — no AWS SDK or Docker required.
+
+```bash
+composer require guzzlehttp/guzzle
+```
+
+```php
+<?php
+require 'vendor/autoload.php';
+use GuzzleHttp\Client;
+
+$client = new Client(['base_uri' => 'https://xxxx.execute-api.us-east-1.amazonaws.com']);
+
+$response = $client->post('/compile', [
+    'json' => [
+        'documents' => [[
+            'mainTyp' => base64_encode("#set page(width: 100pt)\nHello!"),
+            'storeToS3' => false,
+        ]],
+    ],
+]);
+
+$data = json_decode((string) $response->getBody(), true);
+$pdf = base64_decode($data['pdf']); // or $data['s3Url'] if storeToS3 was true
+file_put_contents('output.pdf', $pdf);
+```
+
+Polling for status (e.g. after `storeToS3: true`, or for batch documents):
+
+```php
+$status = json_decode((string) $client->get("/status/{$data['documentId']}")->getBody(), true);
+// $status['status'] === 'completed' && $status['s3Url']
+```
+
+### Laravel (HTTP client)
+
+```php
+// app/Services/TypstService.php
+namespace App\Services;
+
+use Illuminate\Support\Facades\Http;
+
+class TypstService
+{
+    public function compile(string $content, array $options = []): array
+    {
+        $response = Http::baseUrl(config('services.typst.api_url'))->post('/compile', [
+            'documents' => [[
+                'mainTyp' => base64_encode($content),
+                'storeToS3' => $options['storeToS3'] ?? false,
+                'outputFormat' => $options['outputFormat'] ?? 'pdf',
+            ]],
+        ]);
+
+        return $response->json();
+    }
+}
+```
+
+```php
+// config/services.php
+'typst' => [
+    'api_url' => env('TYPST_API_URL'),
+],
+```
+
+Multipart uploads (extra `.typ` includes, fonts, assets, template data) are also supported — see [docs/api/README.md](../api/README.md) for the full `multipart/form-data` field reference. No authentication is enabled by default; see [docs/api/auth.md](../api/auth.md) to add IAM, an API key, or JWT.
 
 ## Lambda (AWS SDK)
 

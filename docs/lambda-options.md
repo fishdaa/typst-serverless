@@ -17,17 +17,17 @@ All available Lambda actions and REST API endpoints with their parameters. Use t
 
 ### compile
 
-Compile one or more documents. Same structure for single and batch: pass `documents` array with 1+ items.
+Compile a single document.
 
 | Method | Path (REST) | SDK `action` |
 |--------|-------------|--------------|
 | POST | `/compile` | `compile` (default) |
 
-**Required:**
+**Required:** `mainTyp` or `mainTypS3` (mutually exclusive).
 
-| Param | Type | Description |
-|-------|------|-------------|
-| `documents` | array | 1 or more items; each has mainTyp or mainTypS3 plus optional fields below |
+Via the **Lambda SDK**, these fields (and all optional params below) go at the **top level** of the payload — there is no `documents` wrapper for a direct `compile` invoke; that wrapper is REST-only (see below) or used by the separate `batch` action.
+
+Via the **REST API**, `POST /compile` always takes a top-level `documents` array (1+ items); a single-item array compiles one document, multiple items compile a batch. Each array item uses the same per-document fields as the SDK payload.
 
 **Per-document optional params:**
 
@@ -78,6 +78,54 @@ Job status for document or batch. Returns status and presigned link when complet
 
 ---
 
+### retrieve
+
+**SDK-only** (not exposed via REST). Fetch a presigned S3 URL for a completed document originally compiled with `storeToS3: true`.
+
+| Method | Path (REST) | SDK `action` |
+|--------|-------------|--------------|
+| — | — | `retrieve` |
+
+**Required:** `documentId`
+
+**Response:** `{ s3Url }` (200); `404` if not found; `409` if not yet `completed`; `400` if the document wasn't stored in S3.
+
+---
+
+### batch
+
+**SDK-only** (not exposed as a distinct REST action — REST's `POST /compile` with a multi-item `documents` array dispatches to this internally). Enqueues each document to SQS for async compilation; requires `storeToS3: true` and a configured batch queue (`enableSqs: true` in Pulumi).
+
+| Method | Path (REST) | SDK `action` |
+|--------|-------------|--------------|
+| — | — | `batch` |
+
+**Required:** `documents` (array, 1+ items, same per-document fields as `compile`)
+
+**Response:** `{ batchId, documentIds }` (200); `503` if the batch queue isn't configured; `400` if `storeToS3` isn't set.
+
+---
+
+### batchstatus
+
+Status for a batch enqueued via `batch`.
+
+| Method | Path (REST) | SDK `action` |
+|--------|-------------|--------------|
+| GET | `/status/{batchId}` (fallback when `id` isn't a known document) | `batchstatus` |
+
+**Required:** `documentId` or `batchId`
+
+**Response:** `{ batchId, results: [{ documentId, status, s3Url?, error? }, ...] }`
+
+---
+
+### sqs
+
+**Internal only.** Invoked by AWS as the SQS trigger target for queued batch messages — not a client-facing action.
+
+---
+
 ## Limits
 
 | Limit | Value |
@@ -104,5 +152,8 @@ Job status for document or batch. Returns status and presigned link when complet
 
 | action | Required params | Optional params |
 |--------|-----------------|-----------------|
-| `compile` | documents (array, 1+ items) | — (each item: mainTyp/mainTypS3, documentId, storeToS3, outputS3, outputFormat, fonts, assets, data, dataFile, webhook) |
+| `compile` | mainTyp or mainTypS3 (top-level) | documentId, storeToS3, outputS3, outputKey, outputFormat, pdfStandard, fonts, assets, data, dataFile, webhook |
 | `status` | documentId | — |
+| `retrieve` | documentId | — |
+| `batch` | documents (array, 1+ items) | — (each item: same optional params as `compile`) |
+| `batchstatus` | documentId or batchId | — |

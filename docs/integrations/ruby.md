@@ -19,6 +19,37 @@ result = JSON.parse(resp.payload.string)
 # result["pdf"] = base64 PDF, or result["s3Url"] if storeToS3
 ```
 
+## REST API (HTTP POST)
+
+If API Gateway is enabled ([docs/api/](../api/README.md)), skip the AWS SDK entirely and call the HTTP endpoint:
+
+```bash
+gem install faraday
+```
+
+```ruby
+require "faraday"
+require "base64"
+require "json"
+
+API_URL = "https://xxxx.execute-api.us-east-1.amazonaws.com"
+
+def compile_via_rest(content, store_to_s3: false)
+  conn = Faraday.new(url: API_URL) { |f| f.request :json }
+  resp = conn.post("/compile") do |req|
+    req.body = {
+      documents: [{
+        mainTyp: Base64.strict_encode64(content),
+        storeToS3: store_to_s3,
+      }],
+    }.to_json
+    req.headers["Content-Type"] = "application/json"
+  end
+  JSON.parse(resp.body)
+  # result["pdf"] = base64 PDF, or result["s3Url"] if storeToS3
+end
+```
+
 ## Sinatra
 
 ```bash

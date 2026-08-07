@@ -85,8 +85,10 @@ const res = await fetch(`${apiUrl}/compile`, {
   method: "POST",
   headers: { "Content-Type": "application/json" },
   body: JSON.stringify({
-    mainTyp: Buffer.from("#set page(width: 100pt)\nHello!").toString("base64"),
-    storeToS3: true,
+    documents: [{
+      mainTyp: Buffer.from("#set page(width: 100pt)\nHello!").toString("base64"),
+      storeToS3: true,
+    }],
   }),
 });
 const result = await res.json();

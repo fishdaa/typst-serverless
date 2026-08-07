@@ -75,13 +75,14 @@ def compile_document(req: CompileRequest):
         main_typ = Path(tmp) / "main.typ"
         main_typ.write_text(req.content)
 
+        # Output format is inferred from TYPST_OUTPUT's extension, not a dedicated env var
         result = subprocess.run(
             [
                 "docker", "run", "--rm",
                 "-v", f"{tmp}:/workspace",
                 "-e", "TYPST_WORKSPACE=/workspace",
                 "-e", "TYPST_MAIN=main.typ",
-                "-e", f"TYPST_OUTPUT_FORMAT={req.outputFormat}",
+                "-e", f"TYPST_OUTPUT=output.{req.outputFormat}",
                 "-e", "TYPST_PIPE=true",
                 TYPST_IMAGE,
             ],
@@ -295,6 +296,62 @@ async def get_status(
     
     result = json.loads(resp["Payload"].read())
     return result
+```
+
+## REST API (HTTP POST)
+
+If API Gateway is enabled ([docs/api/](../api/README.md)), skip boto3 entirely and call the HTTP endpoint:
+
+```bash
+pip install httpx
+```
+
+```python
+import base64
+import httpx
+from fastapi import FastAPI, HTTPException
+from fastapi.responses import Response
+from pydantic import BaseModel
+
+app = FastAPI()
+API_URL = "https://xxxx.execute-api.us-east-1.amazonaws.com"
+
+
+class CompileRequest(BaseModel):
+    content: str
+    storeToS3: bool = False
+
+
+@app.post("/compile")
+async def compile_via_rest(req: CompileRequest):
+    async with httpx.AsyncClient() as client:
+        resp = await client.post(
+            f"{API_URL}/compile",
+            json={
+                "documents": [{
+                    "mainTyp": base64.b64encode(req.content.encode()).decode(),
+                    "storeToS3": req.storeToS3,
+                }],
+            },
+        )
+    result = resp.json()
+
+    if result.get("s3Url"):
+        return {"s3Url": result["s3Url"]}
+    if result.get("pdf"):
+        return Response(
+            content=base64.b64decode(result["pdf"]),
+            media_type="application/pdf",
+            headers={"Content-Disposition": "attachment; filename=output.pdf"},
+        )
+    raise HTTPException(status_code=500, detail=result.get("error", "Unknown error"))
+
+
+@app.get("/status/{document_id}")
+async def get_status_via_rest(document_id: str):
+    async with httpx.AsyncClient() as client:
+        resp = await client.get(f"{API_URL}/status/{document_id}")
+    return resp.json()
 ```
 
 ## Run

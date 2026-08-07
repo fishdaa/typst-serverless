@@ -98,6 +98,39 @@ app.post("/compile", async (c) => {
 export default app;
 ```
 
+## REST API (HTTP POST)
+
+If API Gateway is enabled ([docs/api/](../api/README.md)), skip the AWS SDK entirely and call the HTTP endpoint:
+
+```javascript
+app.post("/compile", async (c) => {
+  const body = await c.req.json();
+  const apiUrl = process.env.TYPST_API_URL;
+
+  const apiRes = await fetch(`${apiUrl}/compile`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      documents: [{
+        mainTyp: Buffer.from(body.content || "#set page(width: 100pt)\nHello!").toString("base64"),
+        storeToS3: !!body.storeToS3,
+      }],
+    }),
+  });
+  const result = await apiRes.json();
+
+  if (result.s3Url) {
+    return c.json({ s3Url: result.s3Url });
+  }
+  if (result.pdf) {
+    c.header("Content-Type", "application/pdf");
+    c.header("Content-Disposition", "attachment; filename=\"output.pdf\"");
+    return c.body(Buffer.from(result.pdf, "base64"));
+  }
+  return c.json({ error: result.error || "Unknown error" }, 500);
+});
+```
+
 ## Run
 
 ```bash

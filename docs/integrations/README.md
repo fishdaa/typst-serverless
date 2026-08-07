@@ -16,6 +16,7 @@ Use Typst Serverless with common languages and web frameworks to generate PDFs o
 |------|-------------|
 | **Container (Docker)** | Run `typst-serverless` image; volume or pipe output. See per-framework guides. |
 | **Lambda (AWS SDK)** | Invoke deployed Lambda via SDK; multipart or S3. See [docs/lambda/](../lambda/README.md). |
+| **REST API (HTTP)** | POST/GET to API Gateway; no AWS SDK required. See [docs/api/](../api/README.md). Shown in [Fastify](node-fastify.md) and [PHP](php.md) guides. |
 
 ## Prerequisites
 

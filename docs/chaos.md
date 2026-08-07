@@ -8,8 +8,8 @@ Resilience patterns for transient failures and fault injection.
 
 S3 and DynamoDB operations are wrapped with `withRetry` to handle transient failures:
 
-- **Retryable errors:** `ECONNRESET`, `ETIMEDOUT`, `ThrottlingException`, `ServiceUnavailable`, `InternalServerError`
-- **Config:** `maxAttempts` (default 3), `baseDelayMs` (100), `maxDelayMs` (5000)
+- **Retryable errors:** exact codes `ECONNRESET`, `ETIMEDOUT`, `ThrottlingException`, `ServiceUnavailable`, `InternalServerError`, plus any error whose message matches `/timeout|retry|throttl|ECONNRESET|ETIMEDOUT/i`
+- **Config:** `maxAttempts` (default 3), `baseDelayMs` (100), `maxDelayMs` (5000), `jitter` (default `true` — randomizes delay to avoid thundering herd)
 - **Usage:** `resolve-input` uses retry for all S3 `GetObject` calls
 
 ### Circuit Breaker

@@ -106,6 +106,54 @@ func compileViaLambda(ctx context.Context, typSource string) ([]byte, error) {
 }
 ```
 
+## REST API (HTTP POST)
+
+If API Gateway is enabled ([docs/api/](../api/README.md)), skip the AWS SDK entirely and call the HTTP endpoint:
+
+```go
+import (
+	"bytes"
+	"encoding/base64"
+	"encoding/json"
+	"net/http"
+)
+
+type compileDoc struct {
+	MainTyp    string `json:"mainTyp"`
+	StoreToS3  bool   `json:"storeToS3"`
+}
+
+type compileRequest struct {
+	Documents []compileDoc `json:"documents"`
+}
+
+type compileResponse struct {
+	Pdf    string `json:"pdf"`
+	S3Url  string `json:"s3Url"`
+	Error  string `json:"error"`
+}
+
+func compileViaRest(apiUrl, typSource string) (*compileResponse, error) {
+	body, _ := json.Marshal(compileRequest{
+		Documents: []compileDoc{{
+			MainTyp:   base64.StdEncoding.EncodeToString([]byte(typSource)),
+			StoreToS3: false,
+		}},
+	})
+	resp, err := http.Post(apiUrl+"/compile", "application/json", bytes.NewReader(body))
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	var result compileResponse
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+```
+
 ## Chi
 
 ```go

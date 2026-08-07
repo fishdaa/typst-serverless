@@ -169,8 +169,8 @@ const result = JSON.parse(new TextDecoder().decode(Payload));
 | Field | Required | Description |
 |-------|----------|-------------|
 | action | No | `compile` (default), `status`, `retrieve`, `batch` |
-| mainTyp | Yes (compile) | Base64-encoded .typ source |
-| mainTypS3 | Yes (compile) | `{ bucket, key }` — must use input bucket |
+| mainTyp | Yes (compile), mutually exclusive with mainTypS3 | Base64-encoded .typ source |
+| mainTypS3 | Yes (compile), mutually exclusive with mainTyp | `{ bucket, key }` — must use input bucket |
 | main | No | Main .typ filename (default `main.typ`); e.g. `document.typ`, `src/report.typ` |
 | storeToS3 | No | If true, store output in S3; return presigned URL |
 | outputKey | No | Custom S3 object key when storeToS3 is true (e.g. `reports/2024.pdf`). Same key overwrites per S3 behavior. |
@@ -269,5 +269,5 @@ Both modes run via `npm run test:localstack` (part of `npm test`).
 ## Limits
 
 - **Payload size:** 6MB sync, 256KB async; 10MB for REST API
-- **S3 key:** No path traversal (`..`), ASCII only
+- **S3 key:** No path traversal (`..`), no leading `/`, ASCII only
 - **document_id:** 1–128 chars, alphanumeric, hyphens, underscores
