@@ -105,9 +105,9 @@ async function handleCompile(
         return httpResponse(400, { error: "Request body is required" });
     }
 
-    if (bodyBuffer && isMultipartFormData(contentType)) {
+    if (bodyBuffer && contentType && isMultipartFormData(contentType)) {
         try {
-            const doc = await parseMultipartCompileBody(bodyBuffer, contentType!);
+            const doc = await parseMultipartCompileBody(bodyBuffer, contentType);
             const res = await lambdaHandler({ ...doc, action: "compile" } as Parameters<typeof lambdaHandler>[0], {});
             return toHttpResponse(res);
         } catch (err) {

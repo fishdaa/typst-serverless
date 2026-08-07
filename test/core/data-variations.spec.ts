@@ -4,15 +4,11 @@
 import { describe, it } from "vitest";
 import assert from "node:assert";
 import { compile } from "@/core/compile.js";
-import { join, dirname } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join } from "node:path";
 import { readFileSync, existsSync, rmSync, writeFileSync, mkdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { randomUUID } from "node:crypto";
 import { getOutputPathAndDir, shouldKeepOutput, assertTypst } from "../test-output-helper.js";
-
-const __testDir = dirname(fileURLToPath(import.meta.url));
-const FIXTURES = join(__testDir, "../fixtures");
 
 describe("core data variations", () => {
     it("compiles when data.json exists with minimal JSON", async () => {

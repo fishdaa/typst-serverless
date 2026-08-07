@@ -31,9 +31,10 @@ async function resolveFile(
     s3Client: S3Client
 ): Promise<void> {
     await mkdir(dirname(destPath), { recursive: true });
-    if (contentSource.bucket && contentSource.key) {
+    const { bucket, key } = contentSource;
+    if (bucket && key) {
         const { Body } = await withRetry<GetObjectCommandOutput>(() =>
-            s3Client.send(new GetObjectCommand({ Bucket: contentSource.bucket!, Key: contentSource.key! }))
+            s3Client.send(new GetObjectCommand({ Bucket: bucket, Key: key }))
         );
         const chunks: Uint8Array[] = [];
         if (Body) {
