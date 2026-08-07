@@ -69,6 +69,28 @@ async function resolveFontsAndAssets(
     }
 }
 
+/** Extra .typ source: name = path relative to workDir (e.g. lib/module.typ) */
+interface ExtraTypItem {
+    name: string;
+    base64?: string;
+    bucket?: string;
+    key?: string;
+}
+
+async function resolveExtraTyps(
+    items: ExtraTypItem[],
+    workDir: string,
+    s3Client: S3Client
+): Promise<void> {
+    if (!items || !Array.isArray(items) || items.length === 0) return;
+    for (const item of items) {
+        const destPath = join(workDir, item.name);
+        const contentSource: ContentSource =
+            item.bucket && item.key ? { bucket: item.bucket, key: item.key } : { base64: item.base64 };
+        await resolveFile(contentSource, destPath, s3Client);
+    }
+}
+
 export interface ResolveResult {
   workDir: string;
   mainPath: string;
@@ -120,13 +142,18 @@ export async function resolveMainTyp(
     await mkdir(workDir, { recursive: true });
     const mainFilename = getMainFilename(event);
 
+    const resolveRest = async (): Promise<void> => {
+        await resolveFontsAndAssets((event.fonts as AssetItem[]) || [], workDir, s3Client);
+        await resolveFontsAndAssets((event.assets as AssetItem[]) || [], workDir, s3Client);
+        await resolveExtraTyps((event.extraTyps as ExtraTypItem[]) || [], workDir, s3Client);
+        await resolveData(event.data, (event.dataFile as string) ?? "data.json", workDir, s3Client);
+    };
+
     if (event.mainTyp && typeof event.mainTyp === "string") {
         const content = Buffer.from(event.mainTyp, "base64").toString("utf-8");
         const mainPath = join(workDir, mainFilename);
         await writeFile(mainPath, content, "utf-8");
-        await resolveFontsAndAssets((event.fonts as AssetItem[]) || [], workDir, s3Client);
-        await resolveFontsAndAssets((event.assets as AssetItem[]) || [], workDir, s3Client);
-        await resolveData(event.data, (event.dataFile as string) ?? "data.json", workDir, s3Client);
+        await resolveRest();
         return { workDir, mainPath };
     }
 
@@ -139,9 +166,7 @@ export async function resolveMainTyp(
         const content = Body ? await streamToString(Body as AsyncIterable<Uint8Array>) : "";
         const mainPath = join(workDir, mainFilename);
         await writeFile(mainPath, content, "utf-8");
-        await resolveFontsAndAssets((event.fonts as AssetItem[]) || [], workDir, s3Client);
-        await resolveFontsAndAssets((event.assets as AssetItem[]) || [], workDir, s3Client);
-        await resolveData(event.data, (event.dataFile as string) ?? "data.json", workDir, s3Client);
+        await resolveRest();
         return { workDir, mainPath };
     }
 

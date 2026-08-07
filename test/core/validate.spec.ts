@@ -10,6 +10,8 @@ import {
     validateS3Key,
     validateS3Ref,
     validateMainTyp,
+    validateExtraTypName,
+    validateExtraTyps,
     validateCompileEvent,
     validateStatusEvent,
     validateWebhookUrl,
@@ -109,6 +111,57 @@ describe("core/validate", () => {
         });
     });
 
+    describe("validateExtraTypName", () => {
+        it("accepts valid extra .typ path", () => {
+            assert.strictEqual(validateExtraTypName("lib/module.typ").valid, true);
+            assert.strictEqual(validateExtraTypName("module.typ").valid, true);
+        });
+
+        it("rejects path traversal or leading slash", () => {
+            assert.strictEqual(validateExtraTypName("../x.typ").valid, false);
+            assert.strictEqual(validateExtraTypName("/x.typ").valid, false);
+        });
+
+        it("rejects non-.typ extension", () => {
+            assert.strictEqual(validateExtraTypName("lib/module.txt").valid, false);
+        });
+
+        it("rejects empty or non-string", () => {
+            assert.strictEqual(validateExtraTypName("").valid, false);
+            assert.strictEqual(validateExtraTypName(123).valid, false);
+        });
+    });
+
+    describe("validateExtraTyps", () => {
+        it("accepts undefined or empty (optional)", () => {
+            assert.strictEqual(validateExtraTyps(undefined).valid, true);
+            assert.strictEqual(validateExtraTyps([]).valid, true);
+        });
+
+        it("accepts valid extraTyps with base64", () => {
+            const r = validateExtraTyps([{ name: "lib/module.typ", base64: "IyB0ZXN0" }]);
+            assert.strictEqual(r.valid, true);
+        });
+
+        it("accepts valid extraTyps with S3", () => {
+            const r = validateExtraTyps([
+                { name: "lib/module.typ", bucket: "b", key: "path/module.typ" },
+            ]);
+            assert.strictEqual(r.valid, true);
+        });
+
+        it("rejects invalid name", () => {
+            const r = validateExtraTyps([{ name: "../x.typ", base64: "e30=" }]);
+            assert.strictEqual(r.valid, false);
+            assert(r.error?.includes("extraTyp"));
+        });
+
+        it("rejects missing base64 or S3", () => {
+            const r = validateExtraTyps([{ name: "lib/module.typ" }]);
+            assert.strictEqual(r.valid, false);
+        });
+    });
+
     describe("validateCompileEvent", () => {
         it("accepts mainTyp base64", () => {
             const r = validateCompileEvent({ mainTyp: "IyBoZWxsbw==" });
@@ -149,6 +202,22 @@ describe("core/validate", () => {
             const r = validateCompileEvent({
                 mainTyp: "e30=",
                 documentId: "bad/id",
+            });
+            assert.strictEqual(r.valid, false);
+        });
+
+        it("accepts valid extraTyps", () => {
+            const r = validateCompileEvent({
+                mainTyp: "e30=",
+                extraTyps: [{ name: "lib/module.typ", base64: "IyB0ZXN0" }],
+            });
+            assert.strictEqual(r.valid, true);
+        });
+
+        it("rejects invalid extraTyps", () => {
+            const r = validateCompileEvent({
+                mainTyp: "e30=",
+                extraTyps: [{ name: "../x.typ", base64: "e30=" }],
             });
             assert.strictEqual(r.valid, false);
         });

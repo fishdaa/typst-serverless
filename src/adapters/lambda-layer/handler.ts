@@ -105,6 +105,8 @@ interface LambdaEvent {
   mainTyp?: string;
   mainTypS3?: { bucket: string; key: string };
   main?: string;
+  /** Optional extra .typ sources for #include / modules: { name, base64? } or { name, bucket, key } */
+  extraTyps?: Array<{ name: string; base64?: string; bucket?: string; key?: string }>;
   documentId?: string;
   batchId?: string;
   data?: string | { bucket: string; key: string };

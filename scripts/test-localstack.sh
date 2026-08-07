@@ -11,8 +11,8 @@ else
 fi
 
 export TYPST_USE_IN_MEMORY_STATE=1
-vitest run test/integration/localstack.spec.ts
+npx vitest run test/integration/localstack.spec.ts
 
 unset TYPST_USE_IN_MEMORY_STATE
 export TYPST_STATE_TABLE=typst-documents
-vitest run test/integration/localstack.spec.ts
+npx vitest run test/integration/localstack.spec.ts

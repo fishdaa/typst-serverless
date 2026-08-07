@@ -31,6 +31,7 @@ All paths are relative to this base URL.
 | `mainTyp` | string | — | Base64-encoded .typ source (required if not mainTypS3) |
 | `mainTypS3` | object | — | `{ bucket, key }` — S3 reference to main.typ (required if not mainTyp) |
 | `main` | string | `main.typ` | Main .typ filename in workDir (e.g. `document.typ`, `src/report.typ`) |
+| `extraTyps` | array | — | Optional extra .typ sources for `#include()` / modules. Each item: `{ name, base64? }` or `{ name, bucket, key }`. `name` = path relative to workDir (e.g. `lib/module.typ`). Written alongside main so Typst can resolve includes. |
 | `documentId` | string | auto UUID | Custom document ID |
 | `storeToS3` | boolean | false | Store output in S3; return presigned URL |
 | `outputS3` | object | — | `{ bucket, keyPrefix? }` — customer S3 bucket; requires `customerOutputBuckets` in Pulumi |
@@ -70,6 +71,7 @@ Compile one or more documents. Same structure for single and batch: pass `docume
 | `mainTyp` | one of | string | Base64-encoded .typ source |
 | `mainTypS3` | one of | object | `{ bucket, key }` — S3 reference to main.typ |
 | `main` | No | string | Main .typ filename (default `main.typ`); e.g. `document.typ`, `src/report.typ` |
+| `extraTyps` | No | array | Extra .typ sources for `#include()` / modules. Each: `{ name, base64? }` or `{ name, bucket, key }`; `name` = path in workDir (e.g. `lib/module.typ`). |
 | `documentId` | No | string | Custom ID; UUID if omitted |
 | `storeToS3` | No | boolean | Store output in S3; return presigned URL |
 | `outputS3` | No | object | `{ bucket, keyPrefix? }` — customer S3 bucket |
@@ -114,6 +116,7 @@ When `Content-Type` is `multipart/form-data`, POST /compile accepts a **single**
 | Part name | Required | Type | Description |
 |-----------|----------|------|-------------|
 | `main`, `mainTyp`, or `file` | Yes (one of) | File | The .typ source file |
+| `extraTyp` / `extraTyps` | No | File(s) | Additional .typ files for `#include()` / modules. Filename = path in workDir (e.g. `lib/module.typ`). Multiple parts allowed. |
 | `documentId` | No | Field | Custom document ID |
 | `storeToS3` | No | Field | `true` or `1` to store output in S3 |
 | `outputFormat` | No | Field | `pdf`, `svg`, `png` |

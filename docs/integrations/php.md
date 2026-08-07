@@ -66,22 +66,28 @@ generatePdf();
 
 ## Laravel
 
+### Container mode
+
 Add a route and controller:
 
 ```php
 // routes/web.php
-Route::get('/pdf', [PdfController::class, 'show']);
+use App\Http\Controllers\PdfController;
+
+Route::get('/pdf', [PdfController::class, 'generate']);
 ```
 
 ```php
 // app/Http/Controllers/PdfController.php
 namespace App\Http\Controllers;
 
+use Illuminate\Http\Response;
+
 class PdfController extends Controller
 {
     private const TYPST_IMAGE = 'typst-serverless';
 
-    public function show()
+    public function generate()
     {
         $tmp = storage_path('app/temp/typst-' . uniqid());
         mkdir($tmp, 0755, true);
@@ -107,6 +113,114 @@ class PdfController extends Controller
             array_map('unlink', glob("$tmp/*"));
             rmdir($tmp);
         }
+    }
+}
+```
+
+### Lambda mode (AWS SDK)
+
+Install AWS SDK:
+
+```bash
+composer require aws/aws-sdk-php
+```
+
+Add to `.env`:
+
+```env
+TYPST_LAMBDA_FUNCTION=typst-compile-xxx
+AWS_DEFAULT_REGION=us-east-1
+```
+
+Create a service:
+
+```php
+// app/Services/TypstService.php
+namespace App\Services;
+
+use Aws\Lambda\LambdaClient;
+use Illuminate\Support\Facades\Log;
+
+class TypstService
+{
+    private LambdaClient $client;
+
+    public function __construct()
+    {
+        $this->client = new LambdaClient([
+            'region' => config('services.aws.region'),
+            'version' => 'latest',
+        ]);
+    }
+
+    public function compile(string $content, array $options = []): array
+    {
+        $payload = [
+            'action' => 'compile',
+            'mainTyp' => base64_encode($content),
+            'storeToS3' => $options['storeToS3'] ?? false,
+            'outputFormat' => $options['outputFormat'] ?? 'pdf',
+        ];
+
+        try {
+            $result = $this->client->invoke([
+                'FunctionName' => config('services.typst.lambda_function'),
+                'Payload' => json_encode($payload),
+            ]);
+
+            return json_decode((string) $result->get('Payload'), true);
+        } catch (\Exception $e) {
+            Log::error('Typst compilation failed', ['error' => $e->getMessage()]);
+            throw $e;
+        }
+    }
+}
+```
+
+Add to `config/services.php`:
+
+```php
+'typst' => [
+    'lambda_function' => env('TYPST_LAMBDA_FUNCTION'),
+],
+```
+
+Controller:
+
+```php
+// app/Http/Controllers/PdfController.php
+namespace App\Http\Controllers;
+
+use App\Services\TypstService;
+use Illuminate\Http\Request;
+
+class PdfController extends Controller
+{
+    public function __construct(private TypstService $typst)
+    {
+    }
+
+    public function generate(Request $request)
+    {
+        $content = $request->input('content', '#set page(width: 100pt)' . "\nHello from Laravel!");
+        
+        $result = $this->typst->compile($content, [
+            'storeToS3' => $request->boolean('storeToS3'),
+        ]);
+
+        if (isset($result['s3Url'])) {
+            return response()->json(['url' => $result['s3Url']]);
+        }
+
+        if (isset($result['pdf'])) {
+            return response(base64_decode($result['pdf']))
+                ->header('Content-Type', 'application/pdf')
+                ->header('Content-Disposition', 'attachment; filename="output.pdf"');
+        }
+
+        return response()->json([
+            'error' => $result['error'] ?? 'Unknown error'
+        ], 500);
     }
 }
 ```

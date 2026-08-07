@@ -163,6 +163,50 @@ export function validateMainTyp(filename: unknown): ValidationResult {
     return { valid: true };
 }
 
+/** Valid name for an extra .typ source: path relative to workDir, ends with .typ, no traversal */
+export function validateExtraTypName(name: unknown): ValidationResult {
+    if (name == null || typeof name !== "string" || name.length === 0 || name.length > 1024) {
+        return { valid: false, error: "extraTyp name must be a non-empty string (1-1024 chars)" };
+    }
+    if (!isValidS3Key(name)) {
+        return { valid: false, error: "extraTyp name invalid: no path traversal (..), no leading slash, ASCII only" };
+    }
+    if (!name.toLowerCase().endsWith(".typ")) {
+        return { valid: false, error: "extraTyp name must end with .typ" };
+    }
+    return { valid: true };
+}
+
+/**
+ * Validate extraTyps array: optional additional .typ sources for #include / modules.
+ * Each item: { name: string } with either base64 or { bucket, key }.
+ */
+export function validateExtraTyps(extraTyps: unknown): ValidationResult {
+    if (!extraTyps || !Array.isArray(extraTyps)) return { valid: true };
+    for (let i = 0; i < extraTyps.length; i++) {
+        const item = extraTyps[i];
+        if (!item || typeof item !== "object" || Array.isArray(item)) {
+            return { valid: false, error: `extraTyps[${i}] must be an object { name, base64? } or { name, bucket, key }` };
+        }
+        const o = item as Record<string, unknown>;
+        if (!o.name || typeof o.name !== "string") {
+            return { valid: false, error: `extraTyps[${i}].name is required` };
+        }
+        const nameResult = validateExtraTypName(o.name);
+        if (!nameResult.valid) return { valid: false, error: `extraTyps[${i}]: ${nameResult.error}` };
+        const hasBase64 = o.base64 != null && typeof o.base64 === "string";
+        const hasS3 = o.bucket != null && o.key != null && typeof o.bucket === "string" && typeof o.key === "string";
+        if (!hasBase64 && !hasS3) {
+            return { valid: false, error: `extraTyps[${i}]: provide base64 or bucket+key` };
+        }
+        if (hasS3) {
+            const s3 = validateS3Ref({ bucket: o.bucket, key: o.key });
+            if (!s3.valid) return { valid: false, error: `extraTyps[${i}]: ${s3.error}` };
+        }
+    }
+    return { valid: true };
+}
+
 /**
  * Validate compile event schema.
  */
@@ -186,6 +230,10 @@ export function validateCompileEvent(event: unknown): ValidationResult {
     if (e.main !== undefined) {
         const mainResult = validateMainTyp(e.main);
         if (!mainResult.valid) return mainResult;
+    }
+    if (e.extraTyps !== undefined) {
+        const extraResult = validateExtraTyps(e.extraTyps);
+        if (!extraResult.valid) return extraResult;
     }
     if (e.documentId) {
         const id = validateDocumentId(e.documentId);

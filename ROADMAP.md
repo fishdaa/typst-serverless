@@ -10,6 +10,8 @@
 
 **Phase 6:** Test coverage expansion — param/asset/font/dataJson/output variations across core and adapters (container, Lambda, API).
 
+**Future:** Multi .typ file support (Lambda/API); Typst Universe (package cache path, docs).
+
 **Architecture principle:** Core codebase is output-agnostic. Same compilation logic runs as containerized (Docker), Lambda (Node.js + Typst Layer), or via ECR (ECS, EKS).
 
 **One-click deploy:** Single-command deployment to AWS (Lambda, DynamoDB, S3, optionally API Gateway) with sensible defaults.
@@ -61,10 +63,12 @@
 | | 6.4 Batch variations — single, 2, 3+ docs; mixed content; verifiable outputs in test-output/ | Done |
 | | 6.5 Verifiable outputs — TYPST_TEST_KEEP_OUTPUT=1 writes to test-output/<timestamp>/ for manual inspection | Done |
 | | 6.6 Cross-adapter matrix — core compile, container CLI, Lambda handler, API Gateway; same inputs | ✅ |
+| **Phase 7 (multi .typ)** | 7.1 resolve-input: extraTyps (base64 or S3), write to workDir; validate names/paths | ✅ |
+| | 7.2 multipart: optional file part(s) extraTyp/extraTyps; API/Lambda docs for multi-file payload | ✅ |
 | **Chaos** | Retry (withRetry), circuit breaker, fault injection; S3 resolve-input resilience; `test/chaos/`, `docs/chaos.md` | ✅ |
 | **Tooling** | TypeScript, Vitest, build (tsc), Tests to TS, ESLint (linting), Devbox (dev shell), CI | TypeScript+Vitest ✅; Tests to TS ✅; ESLint ✅; Devbox ✅; CI ✅ |
 
-Phase 4 complete. Phase 2.6 (ECR) complete. Phase 5 complete. Phase 6 complete (6.1–6.6, chaos). Tooling complete.
+Phase 4 complete. Phase 2.6 (ECR) complete. Phase 5 complete. Phase 6 complete (6.1–6.6, chaos). Phase 7 (multi .typ) complete. Tooling complete.
 
 ### Proof (tests & example code)
 
@@ -111,6 +115,8 @@ Phase 4 complete. Phase 2.6 (ECR) complete. Phase 5 complete. Phase 6 complete (
 | **6.4** | Batch variation tests — single, 2, 3 docs; mixed content; `pdf` in batch results for test-output/. |
 | **6.5** | `TYPST_TEST_KEEP_OUTPUT=1` / `npm run test:keep-output` — outputs to `test-output/<timestamp>/{core-compile,output-variants,batch}/`. |
 | **6.6** | Cross-adapter fixtures; `test/fixtures/shared-payloads.ts`; `test/integration/cross-adapter.spec.ts` — same payloads, equivalent outputs (core, Lambda, API). |
+| **7.1** | `src/adapters/lambda-layer/resolve-input.ts` — extraTyps (base64 or S3), `resolveExtraTyps()`; `src/core/validate.ts` — `validateExtraTyps`, `validateExtraTypName`. |
+| **7.2** | `src/adapters/lambda-layer/multipart.ts` — file parts `extraTyp`/`extraTyps`; docs/api, api-gateway-options, lambda-options — extraTyps param and multipart table. |
 | **Tooling (CI)** | `.github/workflows/ci.yml` — lint, build, unit/integration tests (core, lambda, api, webhooks-batch), container tests (Docker), LocalStack E2E (sync + async). Uses setup-typst, LocalStack service. |
 | **Bundler** | `rollup.config.lambda.js` — bundles Lambda handler + core + AWS SDK; `npm run build:lambda` produces `dist-lambda/` with single bundle, no node_modules. |
 
@@ -510,4 +516,50 @@ Client (AWS SDK) → Lambda (Node.js + Layer) → DynamoDB (state)
 | 6.4 | Batch variations — single, 2, 3+ docs; mixed content; verifiable outputs (done) |
 | 6.5 | Verifiable outputs — `npm run test:keep-output` writes to test-output/<timestamp>/ (done) |
 | 6.6 | Cross-adapter matrix — core, container, Lambda, API; shared fixtures; same inputs → equivalent outputs |
+
+---
+
+## Future / Backlog
+
+Candidate enhancements; not committed phases.
+
+**A. Multi .typ file support (Lambda / API)**
+
+- **Goal:** Allow documents that use `#include("other.typ")` or multiple modules when compiling via Lambda or REST API.
+- **Current state:** Single `mainTyp` (or `mainTypS3`); multipart rejects a second main file; assets allow only images/fonts (no `.typ`).
+- **Scope:** Lambda/API accept additional `.typ` files (e.g. `extraTyps: [{ name: "path/to/module.typ", base64 }]` or S3 refs), write them into the same workDir as main so Typst can resolve `#include` / relative imports. Validation: allow `.typ` in the "extra sources" list only; keep a single main entry point. Docs: document the new payload shape in `docs/api/README.md`, `docs/lambda/README.md`, `docs/api-gateway-options.md`.
+- **Key files:** `src/adapters/lambda-layer/resolve-input.ts` (resolve and write extra .typ into workDir), `src/adapters/lambda-layer/multipart.ts` (optional multipart part for extra .typ), `src/core/validate.ts` (validate extra .typ keys/names), `src/core/assets.ts` (if reusing asset-like structure, extend allowlist for .typ only for this path).
+
+| Milestone | Tasks |
+|-----------|-------|
+| 7.1 | resolve-input: accept extraTyps (base64 or S3), write to workDir; validate names/paths |
+| 7.2 | multipart: optional file part(s) for extra .typ; API/Lambda docs for multi-file payload |
+
+**B. Typst Universe support**
+
+- **Goal:** Support documents that use [Typst Universe](https://typst.app/universe/) packages (`#import "@preview/..."`) in a documented and, where possible, reproducible way.
+- **Current state:** No `--package-cache-path` or `--package-path`; no env vars; no docs. Compilation may work only with network and default cache.
+- **Scope:** Container: document that Universe works when the container has network; optionally document `TYPST_PACKAGE_CACHE_PATH` / `TYPST_PACKAGE_PATH` (or CLI flags) for custom cache or pre-seeded packages in `docs/container/README.md`. Core/CLI: optional `CompileOptions` (e.g. `packageCachePath`, `packagePath`) and pass-through to `typst compile` in `src/core/compile.ts`; container CLI and Lambda handler pass env or event params through. Lambda: optional env (e.g. `TYPST_PACKAGE_CACHE_PATH=/tmp/typst-packages`) so cache lives on `/tmp`; document network requirement and cold-start impact; optionally layer or deploy step to pre-populate cache for selected packages (advanced). Docs: add a short "Typst Universe" subsection linking to typst.app/universe and describing cache/network behavior (e.g. in `docs/getting-started.md` or `docs/container/README.md` or new `docs/packages.md`).
+- **Key files:** `src/core/compile.ts` (add options and `--package-cache-path` / `--package-path` when set), `src/adapters/container/cli.ts` and `src/adapters/lambda-layer/handler.ts` (pass options or env), `docs/container/README.md`, `docs/getting-started.md` or new `docs/packages.md`.
+
+| Milestone | Tasks |
+|-----------|-------|
+| 8.1 | compile.ts: CompileOptions packageCachePath/packagePath; pass to typst CLI; container/Lambda pass env or params |
+| 8.2 | Docs: Typst Universe subsection (cache, network, optional pre-seed); container + Lambda behavior |
+
+**C. Cloudflare adapter**
+
+- **Goal:** Support deploying Typst Serverless to Cloudflare Workers and Cloudflare Pages Functions, leveraging Cloudflare's serverless runtime and edge network.
+- **Current state:** Adapters exist for container (Docker), Lambda (AWS), and ECR (ECS/EKS). No Cloudflare adapter.
+- **Scope:** Create `src/adapters/cloudflare/` adapter with handler for Cloudflare Workers / Pages Functions runtime. Adapt core compilation logic to work within Cloudflare's V8 isolate environment and resource constraints. Use Cloudflare KV or R2 for state tracking and PDF storage (equivalent to DynamoDB + S3 in Lambda adapter). Support Cloudflare Workers Request/Response API. Handle fonts/assets via R2 or bundled binaries. Document deployment via Wrangler. Add integration tests. Update `docs/` with Cloudflare deployment guide and integration examples.
+- **Key files:** New `src/adapters/cloudflare/handler.ts` (Workers request handler), `src/adapters/cloudflare/resolve-input.ts` (R2/KV input resolution), `src/adapters/cloudflare/pulumi/` or `wrangler.toml` for IaC, `test/integration/cloudflare.spec.ts`, new `docs/cloudflare/README.md`, update `docs/getting-started.md` with Cloudflare branch.
+- **Challenges:** Typst binary may need to be compiled to WASM for Workers environment, or run via Cloudflare's Workers for Platforms if native binaries supported. Resource limits (CPU time, memory) may require optimization. Cold start and bundle size considerations.
+
+| Milestone | Tasks |
+|-----------|-------|
+| 9.1 | Research: Typst WASM build or Workers-compatible binary; validate feasibility |
+| 9.2 | Core: Cloudflare Workers handler; request/response mapping; KV/R2 state and storage integration |
+| 9.3 | IaC: Wrangler config or Pulumi for Workers, KV, R2; deployment script |
+| 9.4 | Testing: Integration tests for Cloudflare adapter; validate compile, status, retrieve flows |
+| 9.5 | Docs: `docs/cloudflare/README.md` with setup, deploy, and usage; update `docs/getting-started.md` |
 

@@ -40,7 +40,7 @@ Body must include a `documents` array (one or more items):
 }
 ```
 
-**Per-document optional fields:** `main`, `fonts`, `assets`, `mainTypS3`, `outputS3`, `outputKey`, `outputFormat` (`pdf`|`svg`|`png`), `pdfStandard`, `webhook`, `data`, `dataFile`. See [api-gateway-options.md](../api-gateway-options.md) for full param reference.
+**Per-document optional fields:** `main`, `extraTyps`, `fonts`, `assets`, `mainTypS3`, `outputS3`, `outputKey`, `outputFormat` (`pdf`|`svg`|`png`), `pdfStandard`, `webhook`, `data`, `dataFile`. See [api-gateway-options.md](../api-gateway-options.md) for full param reference.
 
 ### Multipart form-data (single document)
 
@@ -49,6 +49,7 @@ One .typ file per request. Part names:
 | Part name | Required | Description |
 |-----------|----------|-------------|
 | `main`, `mainTyp`, or `file` | Yes (one of) | The .typ source file (binary or text) |
+| `extraTyp` / `extraTyps` | No | File part(s): additional .typ files for `#include()` (filename = path, e.g. `lib/module.typ`) |
 | `documentId` | No | Form field: custom document ID |
 | `storeToS3` | No | Form field: `true` or `1` to store output in S3 |
 | `outputFormat` | No | Form field: `pdf`, `svg`, or `png` |

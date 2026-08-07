@@ -34,6 +34,7 @@ Compile one or more documents. Same structure for single and batch: pass `docume
 | Param | Type | Default | Description |
 |-------|------|---------|-------------|
 | `main` | string | `main.typ` | Main .typ filename in workDir (e.g. `document.typ`, `src/report.typ`) |
+| `extraTyps` | array | — | Extra .typ sources for `#include()` / modules. Each: `{ name, base64? }` or `{ name, bucket, key }`; `name` = path in workDir (e.g. `lib/module.typ`). |
 | `documentId` | string | auto UUID | Custom ID |
 | `storeToS3` | boolean | false | Store output in S3; return presigned URL |
 | `outputS3` | object | — | `{ bucket, keyPrefix? }` — customer S3 bucket; requires `customerOutputBuckets` in Pulumi |

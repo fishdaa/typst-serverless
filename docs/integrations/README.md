@@ -4,7 +4,7 @@ Use Typst Serverless with common languages and web frameworks to generate PDFs o
 
 | Language | Frameworks |
 |----------|------------|
-| **Node.js** | [Express](node-express.md) · [Fastify](node-fastify.md) |
+| **Node.js** | [Express](node-express.md) · [Fastify](node-fastify.md) · [Hono](node-hono.md) |
 | **Python** | [Flask](python-flask.md) · [FastAPI](python-fastapi.md) |
 | **Go** | [net/http, Chi, Echo](go.md) |
 | **PHP** | [plain, Laravel, Slim](php.md) |

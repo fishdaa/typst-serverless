@@ -3,12 +3,15 @@
  * Used for POST /compile with Content-Type: multipart/form-data.
  */
 import { Readable } from "node:stream";
+import { validateExtraTypName } from "@/core/validate.js";
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const Busboy = require("busboy");
 
 export interface MultipartDocument {
     mainTyp: string;
     main?: string;
+    /** Optional extra .typ sources for #include / modules (path relative to workDir) */
+    extraTyps?: Array<{ name: string; base64: string }>;
     documentId?: string;
     storeToS3?: boolean;
     outputFormat?: string;
@@ -23,7 +26,8 @@ export interface MultipartDocument {
 
 /**
  * Parse multipart/form-data buffer into a single document for compile.
- * Part names: main | mainTyp | file = .typ source (required); asset(s) = images; font(s) = fonts;
+ * Part names: main | mainTyp | file = .typ source (required); extraTyp | extraTyps = additional .typ files;
+ * asset(s) = images; font(s) = fonts; data = template data.
  * Fields: documentId, storeToS3, outputFormat, main (filename), dataFile, webhook (URL).
  */
 export function parseMultipartCompileBody(
@@ -33,6 +37,7 @@ export function parseMultipartCompileBody(
     return new Promise((resolve, reject) => {
         const fields: Record<string, string> = {};
         let mainTyp: string | null = null;
+        const extraTyps: Array<{ name: string; base64: string }> = [];
         const assets: Array<{ name: string; base64: string }> = [];
         const fonts: Array<{ name: string; base64: string }> = [];
         let dataBase64: string | null = null;
@@ -63,6 +68,16 @@ export function parseMultipartCompileBody(
                     mainTyp = base64;
                     return;
                 }
+                if (fieldname === "extraTyp" || fieldname === "extraTyps") {
+                    const name = filename.includes("/") || filename.includes("\\") ? filename.replace(/\\/g, "/") : filename;
+                    const nameCheck = validateExtraTypName(name);
+                    if (!nameCheck.valid) {
+                        reject(new Error(`Extra .typ part: ${nameCheck.error}`));
+                        return;
+                    }
+                    extraTyps.push({ name, base64 });
+                    return;
+                }
                 if (fieldname === "asset" || fieldname === "assets") {
                     assets.push({ name: filename, base64 });
                     return;
@@ -87,6 +102,7 @@ export function parseMultipartCompileBody(
             const doc: MultipartDocument = {
                 mainTyp,
                 main: fields.main || "main.typ",
+                ...(extraTyps.length > 0 && { extraTyps }),
                 ...(fields.documentId && { documentId: fields.documentId }),
                 ...(fields.storeToS3 === "true" || fields.storeToS3 === "1" ? { storeToS3: true } : {}),
                 ...(fields.outputFormat && { outputFormat: fields.outputFormat }),
