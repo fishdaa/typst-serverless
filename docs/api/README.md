@@ -49,7 +49,7 @@ One .typ file per request. Part names:
 | Part name | Required | Description |
 |-----------|----------|-------------|
 | `main`, `mainTyp`, or `file` | Yes (one of) | The .typ source file (binary or text) |
-| `extraTyp` / `extraTyps` | No | File part(s): additional .typ files for `#include()` (filename = path, e.g. `lib/module.typ`) |
+| `extraTyp` / `extraTyps` | No | File part(s): additional .typ files for `#include()`. **Flat filenames only** — browsers/multipart parsers strip directory components from `filename`, so nested paths like `lib/module.typ` aren't preserved; use the JSON API's `extraTyps[].name` field for nested includes. |
 | `documentId` | No | Form field: custom document ID |
 | `storeToS3` | No | Form field: `true` or `1` to store output in S3 |
 | `outputFormat` | No | Form field: `pdf`, `svg`, or `png` |

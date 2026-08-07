@@ -116,7 +116,7 @@ When `Content-Type` is `multipart/form-data`, POST /compile accepts a **single**
 | Part name | Required | Type | Description |
 |-----------|----------|------|-------------|
 | `main`, `mainTyp`, or `file` | Yes (one of) | File | The .typ source file |
-| `extraTyp` / `extraTyps` | No | File(s) | Additional .typ files for `#include()` / modules. Filename = path in workDir (e.g. `lib/module.typ`). Multiple parts allowed. |
+| `extraTyp` / `extraTyps` | No | File(s) | Additional .typ files for `#include()` / modules. Multiple parts allowed. **Flat filenames only** — multipart parsers strip directory components from `filename`, so nested paths (e.g. `lib/module.typ`) don't survive; use the JSON API's `extraTyps[].name` field for nested includes. |
 | `documentId` | No | Field | Custom document ID |
 | `storeToS3` | No | Field | `true` or `1` to store output in S3 |
 | `outputFormat` | No | Field | `pdf`, `svg`, `png` |

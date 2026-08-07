@@ -69,13 +69,15 @@ export function parseMultipartCompileBody(
                     return;
                 }
                 if (fieldname === "extraTyp" || fieldname === "extraTyps") {
-                    const name = filename.includes("/") || filename.includes("\\") ? filename.replace(/\\/g, "/") : filename;
-                    const nameCheck = validateExtraTypName(name);
+                    // busboy strips any directory component from filename (same as browsers do),
+                    // so multipart extraTyp names are always flat — nested #include() paths (e.g.
+                    // "lib/module.typ") require the JSON API's extraTyps[].name field instead.
+                    const nameCheck = validateExtraTypName(filename);
                     if (!nameCheck.valid) {
                         reject(new Error(`Extra .typ part: ${nameCheck.error}`));
                         return;
                     }
-                    extraTyps.push({ name, base64 });
+                    extraTyps.push({ name: filename, base64 });
                     return;
                 }
                 if (fieldname === "asset" || fieldname === "assets") {
