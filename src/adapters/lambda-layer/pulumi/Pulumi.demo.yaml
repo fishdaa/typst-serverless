@@ -1,0 +1,4 @@
+encryptionsalt: v1:K36Wr46A2uQ=:v1:sPvQ58DJdtxiQAFy:hPyNGD67WZH7ilasHrAemoyQl7gEoA==
+config:
+  aws:region: ap-southeast-1
+  typst-serverless-lambda:enableSqs: "true"

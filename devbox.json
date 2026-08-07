@@ -5,13 +5,16 @@
     "nodejs@24",
     "docker@29.2.1",
     "localstack@4.9.2",
-    "awscli2@2.35.11"
+    "awscli2@2.35.11",
+    "pulumi-bin@3.255.0"
   ],
   "shell": {
     "init_hook": [
       "echo 'Welcome to devbox!' > /dev/null",
       "export AWS_CONFIG_FILE=\"$DEVBOX_PROJECT_ROOT/.aws/config\"",
-      "export AWS_PROFILE=typst-serverless"
+      "export AWS_PROFILE=typst-serverless",
+      "export PULUMI_BACKEND_URL=s3://typst-serverless-pulumi-state-801651112277",
+      "export PULUMI_CONFIG_PASSPHRASE="
     ],
     "scripts": {
       "test": [

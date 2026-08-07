@@ -6,6 +6,9 @@ import * as aws from "@pulumi/aws";
 import * as pulumi from "@pulumi/pulumi";
 import * as path from "path";
 import * as fs from "fs";
+import { fileURLToPath } from "url";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const config = new pulumi.Config();
 const retentionDays = config.getNumber("s3RetentionDays") ?? 7;
@@ -20,10 +23,12 @@ const table = new aws.dynamodb.Table("typst-documents", {
   name: "typst-documents",
   hashKey: "document_id",
   billingMode: "PAY_PER_REQUEST",
-  attributes: [
-    { name: "document_id", type: "S" },
-    { name: "batch_id", type: "S" },
-  ],
+  attributes: enableSqs
+    ? [
+        { name: "document_id", type: "S" },
+        { name: "batch_id", type: "S" },
+      ]
+    : [{ name: "document_id", type: "S" }],
   globalSecondaryIndexes: enableSqs
     ? [
         {
@@ -197,6 +202,12 @@ if (enableApiGateway) {
   const api = new aws.apigatewayv2.Api("typst-api", {
     protocolType: "HTTP",
     name: "typst-serverless-api",
+    corsConfiguration: {
+      allowOrigins: ["*"],
+      allowMethods: ["GET", "POST", "DELETE", "OPTIONS"],
+      allowHeaders: ["content-type"],
+      maxAge: 86400,
+    },
   });
 
   const integration = new aws.apigatewayv2.Integration("typst-lambda-integration", {

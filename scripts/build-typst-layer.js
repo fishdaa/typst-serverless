@@ -2,7 +2,7 @@
 /**
  * Build Typst Lambda Layer.
  * Downloads typst-x86_64-unknown-linux-gnu from GitHub releases,
- * extracts to opt/bin, zips for Lambda Layer.
+ * extracts to bin/, zips for Lambda Layer.
  */
 import { mkdir, readdir, chmod, rm, copyFile } from "node:fs/promises";
 import { createWriteStream } from "node:fs";
@@ -55,7 +55,7 @@ async function main() {
     const binPath = await findTypstBin(extractDir);
     if (!binPath) throw new Error("typst binary not found in archive");
 
-    const optBin = join(LAYER_DIR, "opt", "bin");
+    const optBin = join(LAYER_DIR, "bin");
     await mkdir(optBin, { recursive: true });
     const dest = join(optBin, "typst");
     await copyFile(binPath, dest);
@@ -66,7 +66,10 @@ async function main() {
     console.log("Creating layer zip...");
     const zipDir = dirname(OUT_ZIP);
     await mkdir(zipDir, { recursive: true });
-    await run("zip", ["-r", OUT_ZIP, "opt"], { cwd: LAYER_DIR });
+    // Lambda extracts a layer's zip contents directly into /opt, so the zip root
+    // must contain "bin/typst" (not "opt/bin/typst") or the binary ends up at
+    // the wrong path (/opt/opt/bin/typst) at runtime.
+    await run("zip", ["-r", OUT_ZIP, "bin"], { cwd: LAYER_DIR });
     console.log("Layer built:", OUT_ZIP);
 }
 

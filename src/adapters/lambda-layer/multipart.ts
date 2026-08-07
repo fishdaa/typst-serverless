@@ -4,8 +4,7 @@
  */
 import { Readable } from "node:stream";
 import { validateExtraTypName } from "@/core/validate.js";
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const Busboy = require("busboy");
+import Busboy from "busboy";
 
 export interface MultipartDocument {
     mainTyp: string;

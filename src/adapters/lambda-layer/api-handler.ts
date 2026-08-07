@@ -144,7 +144,12 @@ async function handleCompile(
         const res = await lambdaHandler({ ...doc, action: "compile" } as Parameters<typeof lambdaHandler>[0], {});
         return toHttpResponse(res);
     }
-    const res = await lambdaHandler({ documents, action: "batch" } as Parameters<typeof lambdaHandler>[0], {});
+    const res = await lambdaHandler({
+        documents,
+        action: "batch",
+        ...(payload.storeToS3 !== undefined && { storeToS3: payload.storeToS3 }),
+        ...(payload.outputS3 !== undefined && { outputS3: payload.outputS3 }),
+    } as Parameters<typeof lambdaHandler>[0], {});
     return toHttpResponse(res);
 }
 

@@ -1,0 +1,3 @@
+name: typst-serverless-demo
+runtime: nodejs
+description: Static hosting (S3 + CloudFront) for the typst-serverless demo site

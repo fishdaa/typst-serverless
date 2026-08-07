@@ -248,6 +248,44 @@
         }
       }
     },
+    "pulumi-bin@3.255.0": {
+      "last_modified": "2026-08-01T16:34:20Z",
+      "resolved": "github:NixOS/nixpkgs/a5cbcfe954791221bfffe2307f7d1a1bf61a871e#pulumi-bin",
+      "source": "devbox-search",
+      "version": "3.255.0",
+      "systems": {
+        "aarch64-darwin": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/f2c7csqp0q8yhskrydjd2b4hvajqfmsn-pulumi-3.255.0",
+              "default": true
+            }
+          ],
+          "store_path": "/nix/store/f2c7csqp0q8yhskrydjd2b4hvajqfmsn-pulumi-3.255.0"
+        },
+        "aarch64-linux": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/qjjpqqj6fsrh7z2vqy7gj9b7s56a2dh8-pulumi-3.255.0",
+              "default": true
+            }
+          ],
+          "store_path": "/nix/store/qjjpqqj6fsrh7z2vqy7gj9b7s56a2dh8-pulumi-3.255.0"
+        },
+        "x86_64-linux": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/9zjl3h8dj4jjsnlx2bmsnd2jff1djkzr-pulumi-3.255.0",
+              "default": true
+            }
+          ],
+          "store_path": "/nix/store/9zjl3h8dj4jjsnlx2bmsnd2jff1djkzr-pulumi-3.255.0"
+        }
+      }
+    },
     "typst@0.14.2": {
       "last_modified": "2026-02-23T15:40:43Z",
       "resolved": "github:NixOS/nixpkgs/80d901ec0377e19ac3f7bb8c035201e2e098cc97#typst",
