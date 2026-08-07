@@ -109,6 +109,7 @@ jobs:
           TYPST_PATH: typst
           TYPST_AWS_ENDPOINT: http://localhost:4566
           TYPST_OUTPUT_BUCKET: typst-output-test
+          TYPST_ASSETS_BUCKET: typst-input-test
           TYPST_USE_IN_MEMORY_STATE: 1
         run: npx vitest run test/integration/localstack.spec.ts
 
@@ -117,5 +118,6 @@ jobs:
           TYPST_PATH: typst
           TYPST_AWS_ENDPOINT: http://localhost:4566
           TYPST_OUTPUT_BUCKET: typst-output-test
+          TYPST_ASSETS_BUCKET: typst-input-test
           TYPST_STATE_TABLE: typst-documents
         run: npx vitest run test/integration/localstack.spec.ts
