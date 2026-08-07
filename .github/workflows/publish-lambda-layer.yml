@@ -80,6 +80,6 @@ jobs:
           aws lambda publish-layer-version \
             --layer-name ${{ env.LAYER_NAME }} \
             --description "Typst binary for Lambda (Node.js)" \
-            --zip-file fileb://src/adapters/lambda-layer/typst-layer.zip \
+            --zip-file fileb://typst-layer.zip \
             --compatible-runtimes ${{ env.COMPATIBLE_RUNTIMES }} \
             --region ${{ matrix.region }}
