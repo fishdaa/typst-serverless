@@ -89,7 +89,11 @@ export interface PosterSize {
 export const POSTER_SIZES: PosterSize[] = [
   { key: '2x5', label: '2 x 5 ft (portrait banner)', widthIn: 24, heightIn: 60 },
   { key: '2x3', label: '2 x 3 ft', widthIn: 24, heightIn: 36 },
-  { key: '3x4', label: '3 x 4 ft', widthIn: 36, heightIn: 48 }
+  { key: '3x4', label: '3 x 4 ft', widthIn: 36, heightIn: 48 },
+  { key: '4x10', label: '4 x 10 ft (2x banner)', widthIn: 48, heightIn: 120 },
+  { key: '6x15', label: '6 x 15 ft (3x banner)', widthIn: 72, heightIn: 180 },
+  { key: '8x20', label: '8 x 20 ft (4x banner)', widthIn: 96, heightIn: 240 },
+  { key: '10x25', label: '10 x 25 ft (5x banner)', widthIn: 120, heightIn: 300 }
 ]
 
 export interface PosterData {
