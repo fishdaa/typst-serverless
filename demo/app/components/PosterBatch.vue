@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { POSTER_SIZES, POSTER_BATCH_DATA, posterTyp, type PosterData } from '~/utils/samples'
 import { textToBase64, base64ToBlobUrl } from '~/utils/encoding'
+import { generatePosterBackground } from '~/utils/poster-background'
 import type { AssetRef } from '~/composables/useApi'
 
 const { compile, compileBatch, getStatus } = useApi()
@@ -27,6 +28,12 @@ async function loadLogo(): Promise<AssetRef> {
   return { name: 'logo.png', base64: logoBase64 }
 }
 
+/** Background image sized in pixels to exactly match the poster at the chosen PPI. */
+function buildBackground(accent: string): AssetRef {
+  const base64 = generatePosterBackground(pixelDims.value.w, pixelDims.value.h, accent)
+  return { name: 'background.png', base64 }
+}
+
 // --- Single poster ---
 const single = ref<PosterData>({ ...POSTER_BATCH_DATA[0] })
 const loading = ref(false)
@@ -41,11 +48,12 @@ async function runSingle() {
   const started = performance.now()
   try {
     const logo = await loadLogo()
+    const background = buildBackground(single.value.accent)
     const result = await compile({
       mainTyp: textToBase64(posterTyp(size.value, single.value)),
       outputFormat: 'png',
       ppi: ppi.value,
-      assets: [logo]
+      assets: [logo, background]
     })
     elapsedMs.value = Math.round(performance.now() - started)
     if (result.pdf) previewUrl.value = base64ToBlobUrl(result.pdf, result.format)
@@ -90,7 +98,7 @@ async function runBatch() {
       mainTyp: textToBase64(posterTyp(size.value, data)),
       outputFormat: 'png' as const,
       ppi: ppi.value,
-      assets: [logo],
+      assets: [logo, buildBackground(data.accent)],
       storeToS3: true
     }))
     const enqueued = await compileBatch(docs, { storeToS3: true })
@@ -115,8 +123,11 @@ onUnmounted(stopPolling)
   <div class="card">
     <h2>Large-Format Posters</h2>
     <p class="desc">
-      Renders at true physical size (e.g. 24in x 60in) and exports PNG at print
-      resolution — a multi-megapixel raster workload. This demo runs against the
+      Renders at true physical size (e.g. 24in x 60in) with a full-bleed
+      background image generated in-browser at the <em>exact same pixel
+      dimensions as the poster</em> (width&times;height in inches &times; PPI),
+      then exports PNG at print resolution — a multi-megapixel raster workload.
+      This demo runs against the
       <a href="https://github.com/fishdaa/typst" target="_blank" rel="noopener">fishdaa/typst</a>
       fork (<code>optimize-large-png</code> branch), which adds a fast path for
       axis-aligned image resampling, SVG dedup, and PDF tiling-pattern caching to

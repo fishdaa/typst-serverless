@@ -106,23 +106,28 @@ export const POSTER_BATCH_DATA: PosterData[] = [
 
 /**
  * Large-format poster source. Rendered at full physical size (e.g. 24in x 60in)
- * so PNG export at print PPI produces very large raster images — this is the
- * workload the fishdaa/typst fork's image-resampling fast path targets.
+ * with a full-bleed background image generated at the same pixel dimensions as
+ * the poster itself — this is the workload the fishdaa/typst fork's
+ * image-resampling fast path targets.
  */
 export function posterTyp(size: PosterSize, data: PosterData): string {
-  return `#set page(width: ${size.widthIn}in, height: ${size.heightIn}in, margin: 1in, fill: white)
+  return `#set page(width: ${size.widthIn}in, height: ${size.heightIn}in, margin: 0in, fill: white)
 #set text(font: "Liberation Sans")
 
-#align(center + horizon)[
-  #block(width: 100%, height: 6in, fill: rgb("${data.accent}"), radius: 12pt)[
-    #align(center + horizon)[
-      #text(size: 72pt, weight: "bold", fill: white)[${data.title}]
+#place(top + left, image("background.png", width: 100%, height: 100%))
+
+#pad(1in)[
+  #align(center + horizon)[
+    #block(width: 100%, height: 6in, fill: rgb("${data.accent}"), radius: 12pt)[
+      #align(center + horizon)[
+        #text(size: 72pt, weight: "bold", fill: white)[${data.title}]
+      ]
     ]
+    #v(1in)
+    #text(size: 36pt, fill: white)[${data.subtitle}]
+    #v(2in)
+    #image("logo.png", width: 3in)
   ]
-  #v(1in)
-  #text(size: 36pt)[${data.subtitle}]
-  #v(2in)
-  #image("logo.png", width: 3in)
 ]
 `
 }
