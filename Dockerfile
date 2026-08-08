@@ -3,12 +3,12 @@
 # optimize-large-png), which carries perf patches for large raster/poster PNG
 # export (fast image resampling, SVG dedup, PDF tiling pattern caching).
 FROM rust:1-alpine AS typst-builder
-RUN apk add --no-cache git musl-dev
+RUN apk add --no-cache git musl-dev perl make
 ARG TYPST_REPO=https://github.com/fishdaa/typst.git
 ARG TYPST_REF=optimize-large-png
 RUN git clone --depth 1 --branch ${TYPST_REF} ${TYPST_REPO} /typst-src
 WORKDIR /typst-src
-RUN cargo build --release --locked -p typst-cli
+RUN cargo build --release --locked -p typst-cli --features vendor-openssl
 
 FROM node:24-alpine
 

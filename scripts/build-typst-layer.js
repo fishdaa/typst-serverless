@@ -34,10 +34,10 @@ async function main() {
     // Build inside a musl-based container so the binary matches the Lambda
     // runtime regardless of the host OS/arch running this script.
     const buildScript = [
-        "apk add --no-cache git musl-dev",
+        "apk add --no-cache git musl-dev perl make",
         `git clone --depth 1 --branch ${TYPST_REF} ${TYPST_REPO} /typst-src`,
         "cd /typst-src",
-        "cargo build --release --locked -p typst-cli",
+        "cargo build --release --locked -p typst-cli --features vendor-openssl",
         "cp target/release/typst /out/typst",
     ].join(" && ");
 
