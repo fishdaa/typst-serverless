@@ -158,6 +158,7 @@ export async function handler(event: LambdaEvent, _context?: unknown): Promise<{
         if (action === "batch") return await handleBatch(event);
         if (action === "batchstatus") return await handleBatchStatus(String(event.documentId || event.batchId || ""));
         if (action === "uploadasset") return await handleUploadAsset(event);
+        if (action === "presignuploadasset") return await handlePresignUploadAsset(event);
         if (action === "listassets") return await handleListAssets(event);
         if (action === "deleteasset") return await handleDeleteAsset(event);
         return lambdaResponse(400, { error: `Unknown action: ${action}` });
@@ -556,6 +557,31 @@ async function handleUploadAsset(event: LambdaEvent) {
         })
     );
     return lambdaResponse(200, { assetPath, size: buffer.length });
+}
+
+/**
+ * Presign a direct-to-S3 PUT URL for a cached asset, so large files (e.g.
+ * print-resolution poster backgrounds) can bypass the API Gateway/Lambda
+ * payload limit entirely instead of being base64-embedded in the request body.
+ */
+async function handlePresignUploadAsset(event: LambdaEvent) {
+    const pathCheck = validateAssetPath(event.assetPath);
+    if (!pathCheck.valid) return lambdaResponse(400, { error: pathCheck.error });
+    if (!ASSETS_BUCKET) {
+        return lambdaResponse(503, { error: "Assets bucket not configured (TYPST_ASSETS_BUCKET or TYPST_INPUT_BUCKET)" });
+    }
+    const assetPath = event.assetPath as string;
+    const contentType = typeof event.contentType === "string" ? event.contentType : undefined;
+    const uploadUrl = await getSignedUrl(
+        s3,
+        new PutObjectCommand({
+            Bucket: ASSETS_BUCKET,
+            Key: assetKeyFor(assetPath),
+            ...(contentType && { ContentType: contentType }),
+        }),
+        { expiresIn: PRESIGNED_EXPIRY }
+    );
+    return lambdaResponse(200, { assetPath, uploadUrl, contentType });
 }
 
 /** List cached assets under an optional path prefix. */

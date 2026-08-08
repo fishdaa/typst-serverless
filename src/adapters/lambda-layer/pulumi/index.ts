@@ -53,6 +53,21 @@ const inputBucket = new aws.s3.BucketV2("typst-input", {
   forceDestroy: true,
 });
 
+// Allow browsers to PUT directly to presigned upload URLs (bypasses the API
+// Gateway/Lambda payload limit for large assets like print-resolution poster
+// backgrounds).
+new aws.s3.BucketCorsConfigurationV2("typst-input-cors", {
+  bucket: inputBucket.id,
+  corsRules: [
+    {
+      allowedMethods: ["PUT"],
+      allowedOrigins: ["*"],
+      allowedHeaders: ["*"],
+      maxAgeSeconds: 3600,
+    },
+  ],
+});
+
 // S3 lifecycle: expire output PDFs
 new aws.s3.BucketLifecycleConfigurationV2("typst-output-lifecycle", {
   bucket: outputBucket.id,
@@ -180,7 +195,7 @@ const lambda = new aws.lambda.Function("typst-compile", {
   code: new pulumi.asset.FileArchive(distDir),
   role: role.arn,
   timeout: 60,
-  memorySize: 512,
+  memorySize: 1024,
   layers: typstLayer ? [typstLayer.arn] : [],
   environment: {
     variables: lambdaEnv,
@@ -233,6 +248,12 @@ if (enableApiGateway) {
   const uploadAssetRoute = new aws.apigatewayv2.Route("upload-asset-route", {
     apiId: api.id,
     routeKey: "POST /assets",
+    target: pulumi.interpolate`integrations/${integration.id}`,
+  });
+
+  const presignUploadAssetRoute = new aws.apigatewayv2.Route("presign-upload-asset-route", {
+    apiId: api.id,
+    routeKey: "POST /assets/presign",
     target: pulumi.interpolate`integrations/${integration.id}`,
   });
 

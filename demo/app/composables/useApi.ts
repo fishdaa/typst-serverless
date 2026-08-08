@@ -121,6 +121,31 @@ export function useApi() {
     })
   }
 
+  /**
+   * Presign a direct-to-S3 PUT URL for a cached asset, then upload the blob
+   * straight to S3 — bypasses the API Gateway/Lambda payload limit for large
+   * files (e.g. print-resolution poster backgrounds).
+   */
+  async function uploadAssetDirect(input: {
+    assetPath: string
+    blob: Blob
+    contentType?: string
+  }): Promise<{ assetPath: string }> {
+    const contentType = input.contentType || input.blob.type || 'application/octet-stream'
+    const { uploadUrl } = await request<{ uploadUrl: string }>('/assets/presign', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ assetPath: input.assetPath, contentType })
+    })
+    const res = await fetch(uploadUrl, {
+      method: 'PUT',
+      headers: { 'Content-Type': contentType },
+      body: input.blob
+    })
+    if (!res.ok) throw new Error(`Direct S3 upload failed (${res.status})`)
+    return { assetPath: input.assetPath }
+  }
+
   function listAssets(prefix?: string): Promise<{ assets: AssetEntry[] }> {
     const qs = prefix ? `?prefix=${encodeURIComponent(prefix)}` : ''
     return request(`/assets${qs}`)
@@ -131,5 +156,5 @@ export function useApi() {
     return request(`/assets/${encodedPath}`, { method: 'DELETE' })
   }
 
-  return { apiBase, compile, compileMultipart, compileBatch, getStatus, uploadAsset, listAssets, deleteAsset }
+  return { apiBase, compile, compileMultipart, compileBatch, getStatus, uploadAsset, uploadAssetDirect, listAssets, deleteAsset }
 }

@@ -4,7 +4,7 @@ import { textToBase64, base64ToBlobUrl } from '~/utils/encoding'
 import { generatePosterBackground } from '~/utils/poster-background'
 import type { AssetRef } from '~/composables/useApi'
 
-const { compile, compileBatch, getStatus } = useApi()
+const { compile, compileBatch, getStatus, uploadAssetDirect } = useApi()
 
 const sizeKey = ref(POSTER_SIZES[0].key)
 const size = computed(() => POSTER_SIZES.find((s) => s.key === sizeKey.value)!)
@@ -28,10 +28,16 @@ async function loadLogo(): Promise<AssetRef> {
   return { name: 'logo.png', base64: logoBase64 }
 }
 
-/** Background image sized in pixels to exactly match the poster at the chosen PPI. */
-function buildBackground(accent: string): AssetRef {
-  const base64 = generatePosterBackground(pixelDims.value.w, pixelDims.value.h, accent)
-  return { name: 'background.png', base64 }
+/**
+ * Background image sized in pixels to exactly match the poster at the chosen PPI.
+ * Uploaded straight to S3 via a presigned URL (not embedded as base64) since
+ * print-resolution backgrounds routinely exceed the API Gateway payload limit.
+ */
+async function uploadBackground(accent: string): Promise<AssetRef> {
+  const blob = await generatePosterBackground(pixelDims.value.w, pixelDims.value.h, accent)
+  const assetPath = `demo/poster-bg-${crypto.randomUUID()}.png`
+  await uploadAssetDirect({ assetPath, blob, contentType: 'image/png' })
+  return { name: 'background.png', assetPath }
 }
 
 // --- Single poster ---
@@ -48,15 +54,17 @@ async function runSingle() {
   const started = performance.now()
   try {
     const logo = await loadLogo()
-    const background = buildBackground(single.value.accent)
+    const background = await uploadBackground(single.value.accent)
     const result = await compile({
       mainTyp: textToBase64(posterTyp(size.value, single.value)),
       outputFormat: 'png',
       ppi: ppi.value,
-      assets: [logo, background]
+      assets: [logo, background],
+      storeToS3: true
     })
     elapsedMs.value = Math.round(performance.now() - started)
-    if (result.pdf) previewUrl.value = base64ToBlobUrl(result.pdf, result.format)
+    if (result.s3Url) previewUrl.value = result.s3Url
+    else if (result.pdf) previewUrl.value = base64ToBlobUrl(result.pdf, result.format)
   } catch (e) {
     error.value = (e as Error).message
   } finally {
@@ -94,13 +102,13 @@ async function runBatch() {
   stopPolling()
   try {
     const logo = await loadLogo()
-    const docs = rows.value.map((data) => ({
+    const docs = await Promise.all(rows.value.map(async (data) => ({
       mainTyp: textToBase64(posterTyp(size.value, data)),
       outputFormat: 'png' as const,
       ppi: ppi.value,
-      assets: [logo, buildBackground(data.accent)],
+      assets: [logo, await uploadBackground(data.accent)],
       storeToS3: true
-    }))
+    })))
     const enqueued = await compileBatch(docs, { storeToS3: true })
     batchId.value = enqueued.batchId
     results.value = enqueued.documentIds.map((id) => ({ documentId: id, status: 'pending' }))

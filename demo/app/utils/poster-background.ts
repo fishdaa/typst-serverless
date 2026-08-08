@@ -5,7 +5,7 @@
  * fishdaa/typst fork's large-image resampling fast path against a
  * poster-sized raster, not a small thumbnail.
  */
-export function generatePosterBackground(widthPx: number, heightPx: number, accent: string): string {
+export function generatePosterBackground(widthPx: number, heightPx: number, accent: string): Promise<Blob> {
   const canvas = document.createElement('canvas')
   canvas.width = widthPx
   canvas.height = heightPx
@@ -36,6 +36,10 @@ export function generatePosterBackground(widthPx: number, heightPx: number, acce
     ctx.stroke()
   }
 
-  const dataUrl = canvas.toDataURL('image/png')
-  return dataUrl.slice(dataUrl.indexOf(',') + 1)
+  return new Promise((resolve, reject) => {
+    canvas.toBlob((blob) => {
+      if (blob) resolve(blob)
+      else reject(new Error('Canvas toBlob failed'))
+    }, 'image/png')
+  })
 }

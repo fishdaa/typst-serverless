@@ -93,6 +93,9 @@ export async function handler(event: Record<string, unknown>): Promise<{
         }
         return statusRes;
     }
+    if (method === "POST" && path === "/assets/presign") {
+        return await handlePresignUploadAsset(bodyStr);
+    }
     if (method === "POST" && path === "/assets") {
         return await handleUploadAsset(bodyBuffer, bodyStr, contentType);
     }
@@ -200,6 +203,20 @@ async function handleUploadAsset(
         return httpResponse(400, { error: "Invalid JSON body" });
     }
     const res = await lambdaHandler({ ...payload, action: "uploadasset" } as Parameters<typeof lambdaHandler>[0], {});
+    return toHttpResponse(res);
+}
+
+async function handlePresignUploadAsset(bodyStr: string | null) {
+    if (!bodyStr || bodyStr.trim().length === 0) {
+        return httpResponse(400, { error: "Request body is required" });
+    }
+    let payload: Record<string, unknown>;
+    try {
+        payload = JSON.parse(bodyStr);
+    } catch {
+        return httpResponse(400, { error: "Invalid JSON body" });
+    }
+    const res = await lambdaHandler({ ...payload, action: "presignuploadasset" } as Parameters<typeof lambdaHandler>[0], {});
     return toHttpResponse(res);
 }
 
