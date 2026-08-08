@@ -135,11 +135,6 @@ onUnmounted(stopPolling)
       background image generated in-browser at the <em>exact same pixel
       dimensions as the poster</em> (width&times;height in inches &times; PPI),
       then exports PNG at print resolution — a multi-megapixel raster workload.
-      This demo runs against the
-      <a href="https://github.com/fishdaa/typst" target="_blank" rel="noopener">fishdaa/typst</a>
-      fork (<code>optimize-large-png</code> branch), which adds a fast path for
-      axis-aligned image resampling, SVG dedup, and PDF tiling-pattern caching to
-      speed up exactly this kind of large-canvas export.
     </p>
     <div class="row" style="margin-bottom: 14px">
       <div>
