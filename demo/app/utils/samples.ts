@@ -77,3 +77,52 @@ export const WEBHOOK_DOC = `= Webhook test document
 This compile was triggered with a webhook URL attached — check your
 receiver for the delivered payload.
 `
+
+export interface PosterSize {
+  key: string
+  label: string
+  widthIn: number
+  heightIn: number
+}
+
+/** Common large-format poster/banner sizes, in inches. */
+export const POSTER_SIZES: PosterSize[] = [
+  { key: '2x5', label: '2 x 5 ft (portrait banner)', widthIn: 24, heightIn: 60 },
+  { key: '2x3', label: '2 x 3 ft', widthIn: 24, heightIn: 36 },
+  { key: '3x4', label: '3 x 4 ft', widthIn: 36, heightIn: 48 }
+]
+
+export interface PosterData {
+  title: string
+  subtitle: string
+  accent: string
+}
+
+export const POSTER_BATCH_DATA: PosterData[] = [
+  { title: 'Booth A1', subtitle: 'Robotics & Automation', accent: '#2563eb' },
+  { title: 'Booth B4', subtitle: 'Renewable Energy', accent: '#16a34a' },
+  { title: 'Booth C2', subtitle: 'Biotech Research', accent: '#dc2626' }
+]
+
+/**
+ * Large-format poster source. Rendered at full physical size (e.g. 24in x 60in)
+ * so PNG export at print PPI produces very large raster images — this is the
+ * workload the fishdaa/typst fork's image-resampling fast path targets.
+ */
+export function posterTyp(size: PosterSize, data: PosterData): string {
+  return `#set page(width: ${size.widthIn}in, height: ${size.heightIn}in, margin: 1in, fill: white)
+#set text(font: "Liberation Sans")
+
+#align(center + horizon)[
+  #block(width: 100%, height: 6in, fill: rgb("${data.accent}"), radius: 12pt)[
+    #align(center + horizon)[
+      #text(size: 72pt, weight: "bold", fill: white)[${data.title}]
+    ]
+  ]
+  #v(1in)
+  #text(size: 36pt)[${data.subtitle}]
+  #v(2in)
+  #image("logo.png", width: 3in)
+]
+`
+}

@@ -130,6 +130,8 @@ interface LambdaEvent {
   outputFormat?: string;
   format?: string;
   pdfStandard?: string;
+  /** Pixels per inch for PNG export (large-format posters etc). */
+  ppi?: number;
   documents?: unknown[];
   [key: string]: unknown;
 }
@@ -214,11 +216,18 @@ async function handleCompile(event: LambdaEvent) {
         const format = (event.outputFormat || event.format || "pdf").toLowerCase();
         const ext = ["pdf", "svg", "png"].includes(format) ? format : "pdf";
         const outputPath = join(workDir, `output.${ext}`);
-        const compileOpts: { typstPath: string; format: string; pdfStandard?: string } = {
+        const compileOpts: { typstPath: string; format: string; pdfStandard?: string; ppi?: number } = {
             typstPath: TYPST_PATH,
             format: ext,
         };
         if (event.pdfStandard) compileOpts.pdfStandard = String(event.pdfStandard).toLowerCase();
+        if (ext === "png" && event.ppi !== undefined) {
+            const ppi = Number(event.ppi);
+            if (!Number.isFinite(ppi) || ppi <= 0 || ppi > 10000) {
+                return lambdaResponse(400, { error: "ppi must be a positive number (<= 10000)" });
+            }
+            compileOpts.ppi = ppi;
+        }
         await compile(mainPath, outputPath, compileOpts);
 
         if (storeToS3) {

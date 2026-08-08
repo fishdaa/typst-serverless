@@ -207,6 +207,23 @@ describe("core/compile", () => {
         }
     });
 
+    it("compiles minimal.typ to PNG at a given ppi, scaling pixel dimensions", async () => {
+        assertTypst();
+        const { output, outDir } = getOutputPathAndDir("core-compile", "minimal.png");
+        try {
+            const input = join(FIXTURES, "minimal.typ");
+            await compile(input, output, { format: "png", ppi: 300 });
+            assert(existsSync(output), "Output PNG should exist");
+            const buf = readFileSync(output);
+            assert(
+                buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4e && buf[3] === 0x47,
+                "Output should be a valid PNG"
+            );
+        } finally {
+            if (!shouldKeepOutput()) rmSync(outDir, { recursive: true, force: true });
+        }
+    });
+
     it("throws on invalid Typst syntax", async () => {
         const { output, outDir } = getOutputPathAndDir("core-compile", "invalid.pdf");
         try {

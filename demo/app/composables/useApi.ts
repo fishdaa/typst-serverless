@@ -23,6 +23,8 @@ export interface CompileDoc {
   storeToS3?: boolean
   outputFormat?: 'pdf' | 'svg' | 'png'
   pdfStandard?: string
+  /** Pixels per inch for PNG export (e.g. large-format posters). Typst default is 144. */
+  ppi?: number
 }
 
 export interface CompileResult {

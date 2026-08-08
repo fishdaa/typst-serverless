@@ -21,6 +21,8 @@ export interface CompileOptions {
   typstPath?: string;
   format?: string;
   pdfStandard?: string;
+  /** Pixels per inch for PNG export (e.g. large-format posters). Typst default is 144. */
+  ppi?: number;
 }
 
 function inferFormat(outputPath: string): string {
@@ -47,6 +49,9 @@ export async function compile(
     }
     if (pdfStandard && VALID_PDF_STANDARDS.has(String(pdfStandard).toLowerCase())) {
         args.push("--pdf-standard", String(pdfStandard).toLowerCase());
+    }
+    if (format === "png" && opts.ppi !== undefined && Number.isFinite(opts.ppi) && opts.ppi > 0) {
+        args.push("--ppi", String(opts.ppi));
     }
     args.push(inputPath, outputPath);
 

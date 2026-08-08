@@ -13,3 +13,5 @@ src/adapters/lambda-layer/typst-layer.zip
 src/adapters/lambda-layer/layer/
 test-output/
 .aws/
+.bin/
+.typst-src/

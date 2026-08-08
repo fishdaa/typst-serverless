@@ -1,7 +1,8 @@
 {
   "$schema": "https://raw.githubusercontent.com/jetify-com/devbox/0.17.0/.schema/devbox.schema.json",
   "packages": [
-    "typst@0.14.2",
+    "rustc@latest",
+    "cargo@latest",
     "nodejs@24",
     "docker@29.2.1",
     "localstack@4.9.2",
@@ -14,7 +15,9 @@
       "export AWS_CONFIG_FILE=\"$DEVBOX_PROJECT_ROOT/.aws/config\"",
       "export AWS_PROFILE=typst-serverless",
       "export PULUMI_BACKEND_URL=s3://typst-serverless-pulumi-state-801651112277",
-      "export PULUMI_CONFIG_PASSPHRASE="
+      "export PULUMI_CONFIG_PASSPHRASE=",
+      "bash \"$DEVBOX_PROJECT_ROOT/scripts/build-typst.sh\" || echo 'Warning: failed to build typst from fishdaa/typst; run scripts/build-typst.sh manually'",
+      "export PATH=\"$DEVBOX_PROJECT_ROOT/.bin:$PATH\""
     ],
     "scripts": {
       "test": [

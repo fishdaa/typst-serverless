@@ -1,9 +1,18 @@
 # Phase 1: Docker packaging for containerized Typst compilation
-# Base: official Typst image
-FROM ghcr.io/typst/typst:0.14.2
+# Typst binary: built from source from the fishdaa/typst fork (branch
+# optimize-large-png), which carries perf patches for large raster/poster PNG
+# export (fast image resampling, SVG dedup, PDF tiling pattern caching).
+FROM rust:1-alpine AS typst-builder
+RUN apk add --no-cache git musl-dev
+ARG TYPST_REPO=https://github.com/fishdaa/typst.git
+ARG TYPST_REF=optimize-large-png
+RUN git clone --depth 1 --branch ${TYPST_REF} ${TYPST_REPO} /typst-src
+WORKDIR /typst-src
+RUN cargo build --release --locked -p typst-cli
 
-# Add Node.js for core logic (same code runs in Lambda)
-RUN apk add --no-cache nodejs npm
+FROM node:24-alpine
+
+COPY --from=typst-builder /typst-src/target/release/typst /usr/local/bin/typst
 
 WORKDIR /app
 
