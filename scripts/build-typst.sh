@@ -23,12 +23,19 @@ if [[ -d "$TYPST_SRC_DIR/.git" ]]; then
 else
   SRC_DIR="$ROOT_DIR/.typst-src"
   if [[ ! -d "$SRC_DIR/.git" ]]; then
-    echo "==> Cloning $TYPST_REPO ($TYPST_REF) into $SRC_DIR"
-    git clone --depth 1 --branch "$TYPST_REF" "$TYPST_REPO" "$SRC_DIR"
+    # Use init+fetch rather than `git clone` so this tolerates a directory
+    # that already contains files (e.g. a CI cache restoring .typst-src/target
+    # ahead of time) — clone requires an empty destination, fetch does not.
+    echo "==> Fetching $TYPST_REPO ($TYPST_REF) into $SRC_DIR"
+    mkdir -p "$SRC_DIR"
+    git -C "$SRC_DIR" init -q
+    git -C "$SRC_DIR" remote add origin "$TYPST_REPO"
+    git -C "$SRC_DIR" fetch --depth 1 origin "$TYPST_REF"
+    git -C "$SRC_DIR" checkout -q --detach FETCH_HEAD
   else
     echo "==> Updating $SRC_DIR to latest $TYPST_REF"
     git -C "$SRC_DIR" fetch --depth 1 origin "$TYPST_REF"
-    git -C "$SRC_DIR" checkout --detach FETCH_HEAD
+    git -C "$SRC_DIR" checkout -q --detach FETCH_HEAD
   fi
 fi
 
