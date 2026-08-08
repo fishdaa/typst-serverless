@@ -38,6 +38,10 @@ async function useSampleAssets() {
   fontFile.value = new File([await fontRes.blob()], 'Roboto.ttf', { type: 'font/ttf' })
 }
 
+onMounted(() => {
+  useSampleAssets()
+})
+
 async function run() {
   loading.value = true
   error.value = ''
