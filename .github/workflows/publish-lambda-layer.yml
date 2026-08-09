@@ -12,8 +12,10 @@ env:
 jobs:
   build:
     runs-on: ubuntu-latest
-    outputs:
-      layer_zip: ${{ steps.build.outputs.path }}
+    strategy:
+      fail-fast: false
+      matrix:
+        architecture: [x86_64, arm64]
     steps:
       - uses: actions/checkout@v5
 
@@ -24,17 +26,15 @@ jobs:
           cache: npm
 
       - name: Build layer
-        id: build
         run: |
           npm ci
-          npm run build:layer
-          echo "path=src/adapters/lambda-layer/typst-layer.zip" >> $GITHUB_OUTPUT
+          npm run build:layer${{ matrix.architecture == 'arm64' && ':arm64' || '' }}
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: typst-layer
-          path: src/adapters/lambda-layer/typst-layer.zip
+          name: typst-layer-${{ matrix.architecture }}
+          path: src/adapters/lambda-layer/typst-layer${{ matrix.architecture == 'arm64' && '-arm64' || '' }}.zip
 
   publish:
     needs: build
@@ -55,6 +55,7 @@ jobs:
           - eu-west-1
           - eu-west-2
           - eu-north-1
+        architecture: [x86_64, arm64]
     runs-on: ubuntu-latest
     permissions:
       id-token: write
@@ -63,7 +64,7 @@ jobs:
       - name: Download artifact
         uses: actions/download-artifact@v4
         with:
-          name: typst-layer
+          name: typst-layer-${{ matrix.architecture }}
 
       - name: Configure AWS
         uses: aws-actions/configure-aws-credentials@v4
@@ -79,7 +80,8 @@ jobs:
         run: |
           aws lambda publish-layer-version \
             --layer-name ${{ env.LAYER_NAME }} \
-            --description "Typst binary for Lambda (Node.js)" \
-            --zip-file fileb://typst-layer.zip \
+            --description "Typst binary for Lambda (${{ matrix.architecture }})" \
+            --zip-file fileb://typst-layer${{ matrix.architecture == 'arm64' && '-arm64' || '' }}.zip \
             --compatible-runtimes ${{ env.COMPATIBLE_RUNTIMES }} \
+            --compatible-architectures ${{ matrix.architecture }} \
             --region ${{ matrix.region }}

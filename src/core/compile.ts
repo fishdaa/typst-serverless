@@ -43,7 +43,7 @@ export async function compile(
     opts: CompileOptions = {}
 ): Promise<void> {
     const root = opts.root ?? dirname(inputPath);
-    const typstPath = opts.typstPath ?? "typst";
+    const typstPath = opts.typstPath ?? process.env.TYPST_PATH ?? "typst";
     const format = opts.format ?? inferFormat(outputPath);
     const pdfStandard = opts.pdfStandard;
 

@@ -10,9 +10,33 @@ Client (AWS SDK) → Lambda (Node.js + Typst Layer) → DynamoDB (state)
                                  S3 (optional output)
 ```
 
+### Native Go and Rust functions
+
+The Typst layer is runtime-neutral: it contains the native executable at
+`/opt/bin/typst`, not Node-specific code. It can be attached to a Go Lambda or
+a Rust custom-runtime Lambda as well as the default Node.js function.
+
+Build the layer for the Lambda architecture, then configure the Pulumi stack:
+
+```bash
+npm run build:layer
+pulumi config set lambdaArchitecture x86_64
+
+# Or arm64:
+LAMBDA_ARCH=arm64 npm run build:layer
+pulumi config set lambdaArchitecture arm64
+```
+
+Go and Rust handlers can invoke `/opt/bin/typst` with the same CLI contract as
+the container adapter. The layer is architecture-specific; do not attach an
+`x86_64` archive to an `arm64` function (or vice versa). The Node.js handler
+and deployment flow remain unchanged.
+
 ## Publish Layer to Multiple Regions (CI)
 
-A GitHub Action publishes the Typst layer to multiple regions on release or manual trigger:
+A GitHub Action publishes both x86_64 and arm64 variants of the Typst layer to
+multiple regions on release or manual trigger. Each published version is
+architecture-specific.
 
 1. Add **AWS credentials**:
    - **OIDC (recommended):** Set `AWS_ROLE_ARN` in Settings → Secrets and variables → Actions (Variables)
@@ -23,6 +47,38 @@ A GitHub Action publishes the Typst layer to multiple regions on release or manu
    - **On release:** Create a release to trigger automatically
 
 Publishes to: `us-east-1`, `us-east-2`, `us-west-1`, `us-west-2`, `ap-south-1`, `ap-northeast-1`, `ap-northeast-2`, `ap-southeast-1`, `ap-southeast-2`, `eu-central-1`, `eu-west-1`, `eu-west-2`, `eu-north-1`.
+
+### Layer links (ARNs)
+
+After publishing, get the layer links for a region with:
+
+```bash
+aws lambda list-layer-versions \
+  --layer-name typst-binary \
+  --region us-east-1 \
+  --query 'Versions[].{Version:Version,Arn:LayerVersionArn,Architectures:CompatibleArchitectures}' \
+  --output table
+```
+
+The layer link is the returned `LayerVersionArn`, for example:
+
+```text
+arn:aws:lambda:us-east-1:123456789012:layer:typst-binary:<version>
+```
+
+Use the link that matches the Lambda function architecture:
+
+```bash
+aws lambda update-function-configuration \
+  --function-name typst-compile-example \
+  --architectures arm64 \
+  --layers arn:aws:lambda:us-east-1:123456789012:layer:typst-binary:<arm64-version>
+```
+
+The x86_64 and arm64 links are different layer versions. Do not attach one
+architecture’s link to a function configured for the other architecture. A
+Pulumi deployment creates the matching layer automatically and exports its
+link as `layerArn` (`pulumi stack output layerArn`).
 
 ## Deploy
 

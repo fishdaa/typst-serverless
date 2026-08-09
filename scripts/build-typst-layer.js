@@ -4,6 +4,10 @@
  * Builds the typst CLI from source (fishdaa/typst fork, branch
  * optimize-large-png) targeting musl so it runs on Amazon Linux (Lambda),
  * then zips it up for a Lambda Layer.
+ *
+ * The layer only contains a native executable, so it can be attached to
+ * Node.js, Go, or Rust Lambda functions. Build with LAMBDA_ARCH=x86_64 or
+ * LAMBDA_ARCH=arm64 to make the binary match the function architecture.
  */
 import { mkdir, rm, copyFile, chmod } from "node:fs/promises";
 import { spawn } from "node:child_process";
@@ -12,11 +16,22 @@ import { fileURLToPath } from "node:url";
 
 const TYPST_REPO = process.env.TYPST_REPO || "https://github.com/fishdaa/typst.git";
 const TYPST_REF = process.env.TYPST_REF || "optimize-large-png";
-// musl build works on Amazon Linux (Lambda)
+const LAMBDA_ARCH = process.env.LAMBDA_ARCH || "x86_64";
+const targets = {
+    x86_64: { platform: "linux/amd64", rust: "x86_64-unknown-linux-musl" },
+    arm64: { platform: "linux/arm64", rust: "aarch64-unknown-linux-musl" },
+};
+if (!targets[LAMBDA_ARCH]) {
+    throw new Error(`Unsupported LAMBDA_ARCH '${LAMBDA_ARCH}'. Use x86_64 or arm64.`);
+}
+// musl build works on Amazon Linux (Lambda), including provided.al2023
 const BUILD_IMAGE = "rust:1-alpine";
 
 const LAYER_DIR = join(dirname(fileURLToPath(import.meta.url)), "..", "src", "adapters", "lambda-layer", "layer");
-const OUT_ZIP = join(dirname(LAYER_DIR), "typst-layer.zip");
+const OUT_ZIP = join(
+    dirname(LAYER_DIR),
+    LAMBDA_ARCH === "x86_64" ? "typst-layer.zip" : `typst-layer-${LAMBDA_ARCH}.zip`,
+);
 
 async function run(cmd, args, opts = {}) {
     return new Promise((resolve, reject) => {
@@ -37,12 +52,14 @@ async function main() {
         "apk add --no-cache git musl-dev perl make",
         `git clone --depth 1 --branch ${TYPST_REF} ${TYPST_REPO} /typst-src`,
         "cd /typst-src",
-        "cargo build --release --locked -p typst-cli --features vendor-openssl",
-        "cp target/release/typst /out/typst",
+        `rustup target add ${targets[LAMBDA_ARCH].rust}`,
+        `cargo build --target ${targets[LAMBDA_ARCH].rust} --release --locked -p typst-cli --features vendor-openssl`,
+        `cp target/${targets[LAMBDA_ARCH].rust}/release/typst /out/typst`,
     ].join(" && ");
 
     await run("docker", [
         "run", "--rm",
+        "--platform", targets[LAMBDA_ARCH].platform,
         "-v", `${workDir}:/out`,
         BUILD_IMAGE,
         "sh", "-c", buildScript,

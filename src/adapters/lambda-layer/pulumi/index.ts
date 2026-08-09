@@ -14,6 +14,10 @@ const config = new pulumi.Config();
 const retentionDays = config.getNumber("s3RetentionDays") ?? 7;
 const enableApiGateway = config.getBoolean("enableApiGateway") ?? true;
 const enableSqs = config.getBoolean("enableSqs") ?? false;
+const lambdaArchitecture = config.get("lambdaArchitecture") ?? "x86_64";
+if (lambdaArchitecture !== "x86_64" && lambdaArchitecture !== "arm64") {
+  throw new Error("lambdaArchitecture must be x86_64 or arm64");
+}
 const customerOutputBuckets = config.get("customerOutputBuckets")?.split(",").map((s) => s.trim()).filter(Boolean) ?? [];
 const projectRoot = path.resolve(__dirname, "../../../..");
 
@@ -82,14 +86,27 @@ new aws.s3.BucketLifecycleConfigurationV2("typst-output-lifecycle", {
 });
 
 // Typst Layer: use pre-built zip if exists
-const layerZip = path.join(projectRoot, "src/adapters/lambda-layer/typst-layer.zip");
+const layerZip = path.join(
+  projectRoot,
+  "src/adapters/lambda-layer",
+  lambdaArchitecture === "x86_64" ? "typst-layer.zip" : `typst-layer-${lambdaArchitecture}.zip`,
+);
 let typstLayer: aws.lambda.LayerVersion | undefined;
 
 if (fs.existsSync(layerZip)) {
   typstLayer = new aws.lambda.LayerVersion("typst-layer", {
     code: new pulumi.asset.FileArchive(layerZip),
     layerName: "typst-binary",
-    compatibleRuntimes: [aws.lambda.Runtime.NodeJS20dX],
+    // Lambda layers contain the native Typst executable, not Node modules.
+    // They are therefore usable by Node.js, Go, and Rust custom-runtime
+    // functions. Node remains the default function runtime below.
+    compatibleRuntimes: [
+      // Use strings here because the installed Pulumi AWS SDK may lag the
+      // current Lambda runtime constants.
+      "nodejs24.x",
+      "provided.al2023",
+    ],
+    compatibleArchitectures: [lambdaArchitecture],
   });
 }
 
@@ -196,6 +213,7 @@ const lambda = new aws.lambda.Function("typst-compile", {
   role: role.arn,
   timeout: 120,
   memorySize: 1024,
+  architectures: [lambdaArchitecture],
   layers: typstLayer ? [typstLayer.arn] : [],
   environment: {
     variables: lambdaEnv,
@@ -306,3 +324,5 @@ export const inputBucketName = inputBucket.id;
 export const assetsBucketName = inputBucket.id;
 export const apiUrl = apiUrlOutput;
 export const batchQueueUrl = batchQueue?.url;
+export const layerArn = typstLayer?.arn;
+export const architecture = lambdaArchitecture;

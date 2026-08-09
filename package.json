@@ -16,6 +16,7 @@
     "test:localstack": "./scripts/test-localstack.sh",
     "compile": "node dist/adapters/container/cli.js",
     "build:layer": "node scripts/build-typst-layer.js",
+    "build:layer:arm64": "LAMBDA_ARCH=arm64 node scripts/build-typst-layer.js",
     "build:lambda": "npm run build && node scripts/build-lambda-package.js",
     "lint": "eslint .",
     "deploy:lambda": "cd src/adapters/lambda-layer/pulumi && pulumi up",
