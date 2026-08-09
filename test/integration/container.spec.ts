@@ -24,15 +24,15 @@ function docker(...args: string[]) {
 
 describe("container integration (Docker)", () => {
     // The image now compiles the fishdaa/typst fork (and vendored OpenSSL) from
-    // source in the builder stage, which takes well over two minutes on a cold
-    // cache (e.g. a fresh CI runner) — the old 120s/150s budget matched the
-    // previous prebuilt-binary-based image and is no longer enough.
-    it("builds image successfully", { timeout: 900000 }, () => {
+    // source in the builder stage, which can take 15+ minutes on a cold
+    // cache (e.g. a fresh CI runner). Keep enough budget for a clean runner
+    // rather than failing before the image is available to the run tests.
+    it("builds image successfully", { timeout: 1800000 }, () => {
         const root = join(__testDir, "../..");
         const { status } = spawnSync("docker", ["build", "-t", IMAGE, "."], {
             cwd: root,
             encoding: "utf-8",
-            timeout: 870000,
+            timeout: 1770000,
         });
         assert.strictEqual(status, 0, "Docker build should succeed");
     });
