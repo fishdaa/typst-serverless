@@ -1,6 +1,6 @@
 {
   "name": "typst-serverless",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "Containerized and serverless Typst compilation",
   "type": "module",
   "scripts": {
