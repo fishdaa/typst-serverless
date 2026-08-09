@@ -47,7 +47,7 @@ async function main(): Promise<void> {
             process.stdout.write(buf);
         }
 
-        process.exit(0);
+        process.exitCode = 0;
     } catch (err) {
         if (STATE && docId) {
             try {
@@ -55,8 +55,10 @@ async function main(): Promise<void> {
                 await state.update(docId, { status: "failed", error: String((err as Error).message) });
             } catch {}
         }
-        console.error((err as Error).message || err);
-        process.exit(1);
+        process.stderr.write(`${(err as Error).message || err}\n`);
+        // Let stderr flush before Node exits. Calling process.exit() here can
+        // truncate the compile diagnostic when this CLI is run through a pipe.
+        process.exitCode = 1;
     }
 }
 
