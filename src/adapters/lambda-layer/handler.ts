@@ -63,8 +63,8 @@ type BatchStatusResult = { documentId: string; status: string; s3Url?: string; e
 
 // Lambda is configured for 90 seconds. Add a small buffer so a hard timeout is
 // reconciled by the next status poll instead of leaving the job at "compiling".
-const STALE_COMPILE_MS = 100_000;
-const TIMEOUT_ERROR = "Compilation timed out after 90 seconds; the Lambda worker was terminated.";
+const STALE_COMPILE_MS = 130_000;
+const TIMEOUT_ERROR = "Compilation timed out after 120 seconds; the Lambda worker was terminated.";
 
 const sqs = new SQSClient(
     endpoint

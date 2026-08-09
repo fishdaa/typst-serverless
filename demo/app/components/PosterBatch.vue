@@ -94,7 +94,7 @@ const batchLoading = ref(false)
 const batchError = ref('')
 const batchId = ref('')
 const results = ref<Array<{ documentId: string; status: string; s3Url?: string; error?: string }>>([])
-let pollHandle: ReturnType<typeof setInterval> | undefined
+const { start: startPolling, stop: stopPolling } = useBatchPolling()
 
 function addRow() {
   rows.value.push({ title: `Booth ${rows.value.length + 1}`, subtitle: 'New exhibitor', accent: '#7c3aed' })
@@ -102,14 +102,6 @@ function addRow() {
 function removeRow(i: number) {
   rows.value.splice(i, 1)
 }
-function stopPolling() {
-  if (pollHandle) clearInterval(pollHandle)
-  pollHandle = undefined
-}
-function allDone() {
-  return results.value.length > 0 && results.value.every((r) => r.status === 'completed' || r.status === 'failed')
-}
-
 async function runBatch() {
   batchLoading.value = true
   batchError.value = ''
@@ -129,11 +121,11 @@ async function runBatch() {
     const enqueued = await compileBatch(docs, { storeToS3: true })
     batchId.value = enqueued.batchId
     results.value = enqueued.documentIds.map((id) => ({ documentId: id, status: 'pending' }))
-    pollHandle = setInterval(async () => {
-      const s = (await getStatus(enqueued.batchId)) as { results: typeof results.value }
-      results.value = s.results
-      if (allDone()) stopPolling()
-    }, 1500)
+    startPolling(
+      () => getStatus(enqueued.batchId) as Promise<{ results: typeof results.value }>,
+      (nextResults) => { results.value = nextResults },
+      (pollError) => { batchError.value = pollError.message }
+    )
   } catch (e) {
     batchError.value = (e as Error).message
   } finally {
@@ -141,7 +133,6 @@ async function runBatch() {
   }
 }
 
-onUnmounted(stopPolling)
 </script>
 
 <template>

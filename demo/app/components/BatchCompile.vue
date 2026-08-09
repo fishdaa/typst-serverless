@@ -9,16 +9,7 @@ const loading = ref(false)
 const error = ref('')
 const batchId = ref('')
 const results = ref<Array<{ documentId: string; status: string; s3Url?: string; error?: string }>>([])
-let pollHandle: ReturnType<typeof setInterval> | undefined
-
-function stopPolling() {
-  if (pollHandle) clearInterval(pollHandle)
-  pollHandle = undefined
-}
-
-function allDone() {
-  return results.value.length > 0 && results.value.every((r) => r.status === 'completed' || r.status === 'failed')
-}
+const { start: startPolling, stop: stopPolling } = useBatchPolling()
 
 async function run() {
   loading.value = true
@@ -33,11 +24,11 @@ async function run() {
     )
     batchId.value = enqueued.batchId
     results.value = enqueued.documentIds.map((id) => ({ documentId: id, status: 'pending' }))
-    pollHandle = setInterval(async () => {
-      const s = (await getStatus(enqueued.batchId)) as { results: typeof results.value }
-      results.value = s.results
-      if (allDone()) stopPolling()
-    }, 1500)
+    startPolling(
+      () => getStatus(enqueued.batchId) as Promise<{ results: typeof results.value }>,
+      (nextResults) => { results.value = nextResults },
+      (pollError) => { error.value = pollError.message }
+    )
   } catch (e) {
     error.value = (e as Error).message
   } finally {
@@ -45,7 +36,6 @@ async function run() {
   }
 }
 
-onUnmounted(stopPolling)
 </script>
 
 <template>

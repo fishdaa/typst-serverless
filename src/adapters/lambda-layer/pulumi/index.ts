@@ -113,7 +113,7 @@ if (enableSqs) {
     messageRetentionSeconds: 1209600, // 14 days
   });
   batchQueue = new aws.sqs.Queue("typst-batch-queue", {
-    visibilityTimeoutSeconds: 120,
+    visibilityTimeoutSeconds: 180,
     messageRetentionSeconds: 345600, // 4 days
     redrivePolicy: dlq.arn.apply((arn) =>
       JSON.stringify({ deadLetterTargetArn: arn, maxReceiveCount: 1 })
@@ -194,7 +194,7 @@ const lambda = new aws.lambda.Function("typst-compile", {
   handler: "adapters/lambda-layer/index.handler",
   code: new pulumi.asset.FileArchive(distDir),
   role: role.arn,
-  timeout: 90,
+  timeout: 120,
   memorySize: 1024,
   layers: typstLayer ? [typstLayer.arn] : [],
   environment: {
