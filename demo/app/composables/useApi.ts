@@ -153,10 +153,15 @@ export function useApi() {
     return request(`/assets${qs}`)
   }
 
+  function downloadAsset(assetPath: string): Promise<{ assetPath: string; downloadUrl: string }> {
+    const encodedPath = assetPath.split('/').map(encodeURIComponent).join('/')
+    return request(`/assets/download/${encodedPath}`)
+  }
+
   function deleteAsset(assetPath: string): Promise<{ assetPath: string; deleted: boolean }> {
     const encodedPath = assetPath.split('/').map(encodeURIComponent).join('/')
     return request(`/assets/${encodedPath}`, { method: 'DELETE' })
   }
 
-  return { apiBase, compile, compileMultipart, compileBatch, getStatus, uploadAsset, uploadAssetDirect, listAssets, deleteAsset }
+  return { apiBase, compile, compileMultipart, compileBatch, getStatus, uploadAsset, uploadAssetDirect, listAssets, downloadAsset, deleteAsset }
 }

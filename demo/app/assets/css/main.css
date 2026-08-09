@@ -87,7 +87,97 @@ body {
 .card p.desc {
   color: var(--muted);
   font-size: 0.9rem;
-  margin-top: -6px;
+  margin: 4px 0 0;
+}
+
+.asset-heading,
+.asset-list-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.asset-heading { margin-bottom: 18px; }
+
+.asset-heading h2,
+.asset-panel h3,
+.asset-list h3 { margin-bottom: 0; }
+
+.asset-panel,
+.asset-list {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px;
+}
+
+.asset-panel h3,
+.asset-list h3 { font-size: 0.98rem; }
+
+.helper {
+  color: var(--muted);
+  font-size: 0.8rem;
+  margin: 4px 0 12px;
+}
+
+.selected-file {
+  color: var(--muted);
+  font-size: 0.8rem;
+  margin-top: 8px;
+}
+
+.selected-file strong { color: var(--text); }
+.upload-actions { margin-top: 14px; }
+
+.compile-panel .preview {
+  min-height: 180px;
+  margin-top: 16px;
+}
+
+.compile-panel .preview iframe { height: 360px; }
+
+.asset-list {
+  grid-column: 1 / -1;
+  margin-top: 0;
+}
+
+.asset-list-heading { align-items: center; }
+.asset-list-heading .helper { margin-bottom: 0; }
+.refresh-button { padding: 6px 12px; }
+
+.asset-list table { margin-top: 14px; }
+.asset-path {
+  max-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.8rem;
+}
+.asset-size { color: var(--muted); white-space: nowrap; }
+.asset-action { text-align: right; white-space: nowrap; }
+.asset-action button + button { margin-left: 6px; }
+
+.empty-state {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 88px;
+  color: var(--text);
+  font-size: 0.85rem;
+}
+.empty-state .muted { color: var(--muted); }
+.empty-icon { color: var(--accent); font-size: 1.35rem; }
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 .grid-2 {
@@ -98,6 +188,16 @@ body {
 
 @media (max-width: 800px) {
   .grid-2 { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 520px) {
+  .card { padding: 14px; }
+  .asset-panel, .asset-list { padding: 12px; }
+  .asset-heading, .asset-list-heading { align-items: flex-start; }
+  .asset-heading .pill { margin-top: 2px; }
+  .asset-action button { padding: 6px 8px; }
+  .asset-action button + button { margin-left: 2px; }
+  .asset-list th, .asset-list td { padding: 8px 4px; }
 }
 
 textarea, input[type="text"], input[type="url"], select {

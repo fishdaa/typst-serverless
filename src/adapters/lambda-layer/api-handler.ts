@@ -99,6 +99,10 @@ export async function handler(event: Record<string, unknown>): Promise<{
     if (method === "POST" && path === "/assets") {
         return await handleUploadAsset(bodyBuffer, bodyStr, contentType);
     }
+    if (method === "GET" && path?.startsWith("/assets/download/") && id) {
+        const res = await lambdaHandler({ action: "presigndownloadasset", assetPath: id } as Parameters<typeof lambdaHandler>[0], {});
+        return toHttpResponse(res);
+    }
     if (method === "GET" && path === "/assets") {
         return await handleListAssets(event);
     }

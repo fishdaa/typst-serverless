@@ -1,6 +1,6 @@
 /**
  * Lambda handler for Typst Serverless.
- * Actions: compile, status, retrieve, batch, uploadasset, listassets, deleteasset
+ * Actions: compile, status, retrieve, batch, uploadasset, listassets, presigndownloadasset, deleteasset
  */
 import { compile } from "@/core/compile.js";
 import { createInMemoryState } from "@/core/state.js";
@@ -23,6 +23,7 @@ import { StepLog, pollChildRss, dirSizeMB } from "@/adapters/lambda-layer/teleme
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocumentClient, QueryCommand } from "@aws-sdk/lib-dynamodb";
 import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand, ListObjectsV2Command, CopyObjectCommand } from "@aws-sdk/client-s3";
+import { Upload } from "@aws-sdk/lib-storage";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { SQSClient, SendMessageCommand } from "@aws-sdk/client-sqs";
 import { rmSync } from "node:fs";
@@ -162,6 +163,7 @@ export async function handler(event: LambdaEvent, _context?: unknown): Promise<{
         if (action === "batchstatus") return await handleBatchStatus(String(event.documentId || event.batchId || ""));
         if (action === "uploadasset") return await handleUploadAsset(event);
         if (action === "presignuploadasset") return await handlePresignUploadAsset(event);
+        if (action === "presigndownloadasset") return await handlePresignDownloadAsset(event);
         if (action === "listassets") return await handleListAssets(event);
         if (action === "deleteasset") return await handleDeleteAsset(event);
         return lambdaResponse(400, { error: `Unknown action: ${action}` });
@@ -264,8 +266,8 @@ async function handleCompile(event: LambdaEvent) {
 
         if (storeToS3) {
             const fs = await import("node:fs/promises");
-            const outBuffer = await fs.readFile(outputPath);
-            log.emit("read-output", { outputMB: Math.round((outBuffer.length / 1024 / 1024) * 10) / 10 });
+            const { size: outputBytes } = await fs.stat(outputPath);
+            log.emit("read-output", { outputMB: Math.round((outputBytes / 1024 / 1024) * 10) / 10 });
             const bucket = outputS3?.bucket ?? OUTPUT_BUCKET;
             if (!bucket) throw new Error("Output bucket not configured (TYPST_OUTPUT_BUCKET or outputS3.bucket)");
             const keyPrefix = (outputS3?.keyPrefix || "outputs/").replace(/\/?$/, "/");
@@ -277,14 +279,21 @@ async function handleCompile(event: LambdaEvent) {
                 throw new Error(keyCheck.error);
             }
             const contentType = ext === "pdf" ? "application/pdf" : ext === "svg" ? "image/svg+xml" : "image/png";
-            await s3.send(
-                new PutObjectCommand({
+            const { createReadStream } = await import("node:fs");
+            // Streams the output file straight to S3 (multipart for large files) instead of
+            // buffering the whole thing in Node memory — outputs of hundreds of MB to low GB
+            // (e.g. large-format posters) would otherwise risk OOMing the Lambda container even
+            // though the typst renderer itself stays well under its --max-memory band budget.
+            const upload = new Upload({
+                client: s3,
+                params: {
                     Bucket: bucket,
                     Key: s3Key,
-                    Body: outBuffer,
+                    Body: createReadStream(outputPath),
                     ContentType: contentType,
-                })
-            );
+                },
+            });
+            await upload.done();
             log.emit("s3-upload", { bucket, key: s3Key });
             await state.update(documentId, { status: "completed", s3_key: s3Key, s3_bucket: bucket });
             const url = await getSignedUrl(
@@ -618,6 +627,27 @@ async function handlePresignUploadAsset(event: LambdaEvent) {
         { expiresIn: PRESIGNED_EXPIRY }
     );
     return lambdaResponse(200, { assetPath, uploadUrl, contentType });
+}
+
+/** Presign a private cached asset for browser download. */
+async function handlePresignDownloadAsset(event: LambdaEvent) {
+    const pathCheck = validateAssetPath(event.assetPath);
+    if (!pathCheck.valid) return lambdaResponse(400, { error: pathCheck.error });
+    if (!ASSETS_BUCKET) {
+        return lambdaResponse(503, { error: "Assets bucket not configured (TYPST_ASSETS_BUCKET or TYPST_INPUT_BUCKET)" });
+    }
+    const assetPath = event.assetPath as string;
+    const filename = assetPath.split("/").pop() || "asset";
+    const downloadUrl = await getSignedUrl(
+        s3,
+        new GetObjectCommand({
+            Bucket: ASSETS_BUCKET,
+            Key: assetKeyFor(assetPath),
+            ResponseContentDisposition: `attachment; filename="${filename.replace(/[^a-zA-Z0-9._-]/g, "_")}"`,
+        }),
+        { expiresIn: PRESIGNED_EXPIRY }
+    );
+    return lambdaResponse(200, { assetPath, downloadUrl });
 }
 
 /** List cached assets under an optional path prefix. */

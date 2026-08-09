@@ -263,6 +263,12 @@ if (enableApiGateway) {
     target: pulumi.interpolate`integrations/${integration.id}`,
   });
 
+  const downloadAssetRoute = new aws.apigatewayv2.Route("download-asset-route", {
+    apiId: api.id,
+    routeKey: "GET /assets/download/{path+}",
+    target: pulumi.interpolate`integrations/${integration.id}`,
+  });
+
   const deleteAssetRoute = new aws.apigatewayv2.Route("delete-asset-route", {
     apiId: api.id,
     routeKey: "DELETE /assets/{path+}",
