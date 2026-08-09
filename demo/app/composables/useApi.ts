@@ -27,6 +27,8 @@ export interface CompileDoc {
   ppi?: number
   /** Caps peak memory used while rendering a page to PNG, in mebibytes. */
   maxMemory?: number
+  /** PNG compression effort. Defaults to high. */
+  pngCompression?: 'no-compression' | 'fastest' | 'fast' | 'balanced' | 'high'
 }
 
 export interface CompileResult {

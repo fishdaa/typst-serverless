@@ -75,6 +75,7 @@ async function runSingle() {
       outputFormat: 'png',
       ppi: ppi.value,
       maxMemory: MAX_MEMORY_MB,
+      pngCompression: 'high',
       assets: [logo, background],
       storeToS3: true
     })
@@ -115,6 +116,7 @@ async function runBatch() {
       outputFormat: 'png' as const,
       ppi: ppi.value,
       maxMemory: MAX_MEMORY_MB,
+      pngCompression: 'high',
       assets: [logo, await uploadBackground(data.accent)],
       storeToS3: true
     })))

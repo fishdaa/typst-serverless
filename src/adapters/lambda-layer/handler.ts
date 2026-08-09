@@ -159,6 +159,8 @@ interface LambdaEvent {
   ppi?: number;
   /** Caps peak memory used while rendering a page to PNG, in mebibytes. */
   maxMemory?: number;
+  /** PNG compression effort: no-compression, fastest, fast, balanced, or high. */
+  pngCompression?: string;
   documents?: unknown[];
   [key: string]: unknown;
 }
@@ -235,6 +237,7 @@ async function handleCompile(event: LambdaEvent) {
         outputFormat: event.outputFormat || event.format,
         ppi: event.ppi,
         maxMemory: event.maxMemory,
+        pngCompression: event.pngCompression,
         storeToS3,
         assetsCount: event.assets?.length ?? 0,
         fontsCount: event.fonts?.length ?? 0,
@@ -258,7 +261,7 @@ async function handleCompile(event: LambdaEvent) {
         const format = (event.outputFormat || event.format || "pdf").toLowerCase();
         const ext = ["pdf", "svg", "png"].includes(format) ? format : "pdf";
         const outputPath = join(workDir, `output.${ext}`);
-        const compileOpts: { typstPath: string; format: string; pdfStandard?: string; ppi?: number; maxMemory?: number } = {
+        const compileOpts: { typstPath: string; format: string; pdfStandard?: string; ppi?: number; maxMemory?: number; pngCompression?: string } = {
             typstPath: TYPST_PATH,
             format: ext,
         };
@@ -276,6 +279,13 @@ async function handleCompile(event: LambdaEvent) {
                 return lambdaResponse(400, { error: "maxMemory must be a positive number (mebibytes)" });
             }
             compileOpts.maxMemory = maxMemory;
+        }
+        if (ext === "png" && event.pngCompression !== undefined) {
+            const pngCompression = String(event.pngCompression).toLowerCase();
+            if (!["no-compression", "fastest", "fast", "balanced", "high"].includes(pngCompression)) {
+                return lambdaResponse(400, { error: "pngCompression must be one of no-compression, fastest, fast, balanced, or high" });
+            }
+            compileOpts.pngCompression = pngCompression;
         }
         let rssPoll: { stop(): number } | undefined;
         await compile(mainPath, outputPath, {
