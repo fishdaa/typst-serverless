@@ -155,3 +155,4 @@ If you use [Devbox](https://github.com/jetify-com/devbox), `devbox shell` provid
 - [Chaos Engineering](docs/chaos.md) — Retry, circuit breaker, fault injection
 - [Container Use Cases](docs/container/README.md) — volume, pipe, state
 - [Integrations](docs/integrations/README.md) — Node.js (Express, Fastify), Python (Flask, FastAPI), Go, PHP, Ruby
+- [Documentation Wiki](https://github.com/fishdaa/typst-serverless/wiki) — browsable documentation mirror

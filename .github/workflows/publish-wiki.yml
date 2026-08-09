@@ -1,0 +1,45 @@
+name: Publish documentation wiki
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'docs/**'
+      - '.github/workflows/publish-wiki.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source documentation
+        uses: actions/checkout@v4
+
+      - name: Check out GitHub wiki
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository }}.wiki
+          path: wiki
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      - name: Mirror docs into wiki
+        run: |
+          rsync -a --delete --exclude='.git/' docs/ wiki/
+          cp docs/getting-started.md wiki/Home.md
+
+      - name: Publish changes
+        run: |
+          git -C wiki config user.name 'github-actions[bot]'
+          git -C wiki config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git -C wiki add --all
+
+          if git -C wiki diff --cached --quiet; then
+            echo 'Wiki is already up to date.'
+          else
+            git -C wiki commit -m 'docs: sync repository documentation'
+            git -C wiki push
+          fi
