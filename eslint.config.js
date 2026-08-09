@@ -10,6 +10,6 @@ export default defineConfig(
         },
     },
     {
-        ignores: ["dist/**", "dist-lambda/**", "node_modules/**", "**/pulumi/**", ".devbox/**"],
+        ignores: ["dist/**", "dist-lambda/**", "node_modules/**", "**/pulumi/**", ".devbox/**", "**/.nuxt/**", "**/.output/**"],
     },
 );

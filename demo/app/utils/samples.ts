@@ -40,13 +40,13 @@ Author: #data.author
 `
 
 export const DATA_BINDING_JSON = JSON.stringify(
-  {
-    title: 'Quarterly Summary',
-    author: 'typst-serverless demo',
-    content: 'This paragraph is rendered from JSON data bound into the template at compile time. Edit the JSON on the left and recompile.'
-  },
-  null,
-  2
+    {
+        title: 'Quarterly Summary',
+        author: 'typst-serverless demo',
+        content: 'This paragraph is rendered from JSON data bound into the template at compile time. Edit the JSON on the left and recompile.'
+    },
+    null,
+    2
 )
 
 export const OUTPUT_FORMATS_DOC = `#set page(width: 300pt, height: 200pt, margin: 16pt)
@@ -68,9 +68,9 @@ export const ASSET_DOC = `#set page(width: 260pt, height: 180pt, margin: 14pt)
 `
 
 export const BATCH_DOCS = [
-  '= Invoice 001\n\nCustomer: Acme Corp\nAmount: \\$120.00',
-  '= Invoice 002\n\nCustomer: Globex Inc\nAmount: \\$85.50',
-  '= Invoice 003\n\nCustomer: Initech\nAmount: \\$310.25'
+    '= Invoice 001\n\nCustomer: Acme Corp\nAmount: \\$120.00',
+    '= Invoice 002\n\nCustomer: Globex Inc\nAmount: \\$85.50',
+    '= Invoice 003\n\nCustomer: Initech\nAmount: \\$310.25'
 ]
 
 export const WEBHOOK_DOC = `= Webhook test document
@@ -87,13 +87,13 @@ export interface PosterSize {
 
 /** Common large-format poster/banner sizes, in inches. */
 export const POSTER_SIZES: PosterSize[] = [
-  { key: '2x5', label: '2 x 5 ft (portrait banner)', widthIn: 24, heightIn: 60 },
-  { key: '2x3', label: '2 x 3 ft', widthIn: 24, heightIn: 36 },
-  { key: '3x4', label: '3 x 4 ft', widthIn: 36, heightIn: 48 },
-  { key: '4x10', label: '4 x 10 ft (2x banner)', widthIn: 48, heightIn: 120 },
-  { key: '6x15', label: '6 x 15 ft (3x banner)', widthIn: 72, heightIn: 180 },
-  { key: '8x20', label: '8 x 20 ft (4x banner)', widthIn: 96, heightIn: 240 },
-  { key: '10x25', label: '10 x 25 ft (5x banner)', widthIn: 120, heightIn: 300 }
+    { key: '2x5', label: '2 x 5 ft (portrait banner)', widthIn: 24, heightIn: 60 },
+    { key: '2x3', label: '2 x 3 ft', widthIn: 24, heightIn: 36 },
+    { key: '3x4', label: '3 x 4 ft', widthIn: 36, heightIn: 48 },
+    { key: '4x10', label: '4 x 10 ft (2x banner)', widthIn: 48, heightIn: 120 },
+    { key: '6x15', label: '6 x 15 ft (3x banner)', widthIn: 72, heightIn: 180 },
+    { key: '8x20', label: '8 x 20 ft (4x banner)', widthIn: 96, heightIn: 240 },
+    { key: '10x25', label: '10 x 25 ft (5x banner)', widthIn: 120, heightIn: 300 }
 ]
 
 export interface PosterData {
@@ -103,9 +103,9 @@ export interface PosterData {
 }
 
 export const POSTER_BATCH_DATA: PosterData[] = [
-  { title: 'Booth A1', subtitle: 'Robotics & Automation', accent: '#2563eb' },
-  { title: 'Booth B4', subtitle: 'Renewable Energy', accent: '#16a34a' },
-  { title: 'Booth C2', subtitle: 'Biotech Research', accent: '#dc2626' }
+    { title: 'Booth A1', subtitle: 'Robotics & Automation', accent: '#2563eb' },
+    { title: 'Booth B4', subtitle: 'Renewable Energy', accent: '#16a34a' },
+    { title: 'Booth C2', subtitle: 'Biotech Research', accent: '#dc2626' }
 ]
 
 /**
@@ -114,7 +114,7 @@ export const POSTER_BATCH_DATA: PosterData[] = [
  * the workload the fishdaa/typst fork's image-resampling fast path targets.
  */
 export function posterTyp(size: PosterSize, data: PosterData, backgroundExtension = 'png'): string {
-  return `#set page(width: ${size.widthIn}in, height: ${size.heightIn}in, margin: 0in, fill: white)
+    return `#set page(width: ${size.widthIn}in, height: ${size.heightIn}in, margin: 0in, fill: white)
 #set text(font: "Liberation Sans")
 
   #place(top + left, image("background.${backgroundExtension}", width: 100%, height: 100%))
