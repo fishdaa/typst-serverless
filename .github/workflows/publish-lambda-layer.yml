@@ -7,7 +7,7 @@ on:
 
 env:
   LAYER_NAME: typst-binary
-  COMPATIBLE_RUNTIMES: nodejs20.x
+  COMPATIBLE_RUNTIMES: nodejs24.x
 
 jobs:
   build:

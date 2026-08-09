@@ -190,7 +190,7 @@ if (enableSqs && batchQueue) {
 }
 
 const lambda = new aws.lambda.Function("typst-compile", {
-  runtime: aws.lambda.Runtime.NodeJS20dX,
+  runtime: "nodejs24.x",
   handler: "adapters/lambda-layer/index.handler",
   code: new pulumi.asset.FileArchive(distDir),
   role: role.arn,
