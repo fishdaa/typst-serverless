@@ -25,6 +25,11 @@ jobs:
           node-version: 24
           cache: npm
 
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: all
+
       - name: Build layer
         run: |
           npm ci
