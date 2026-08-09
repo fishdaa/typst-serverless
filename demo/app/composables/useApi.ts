@@ -100,7 +100,7 @@ export function useApi() {
     docs: CompileDoc[],
     opts?: { storeToS3?: boolean; outputS3?: { bucket: string; keyPrefix?: string } }
   ): Promise<BatchEnqueueResult> {
-    return request('/compile', {
+    return request('/batch', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ documents: docs, ...opts })

@@ -206,7 +206,7 @@ onUnmounted(stopPolling)
     <h3 style="margin-top: 20px">Dynamic batch (SQS)</h3>
     <p class="desc">
       Each row becomes its own poster at the same size/PPI, enqueued together via
-      <code>POST /compile</code> with <code>storeToS3: true</code>.
+      <code>POST /batch</code> with <code>storeToS3: true</code>.
     </p>
     <table>
       <thead>

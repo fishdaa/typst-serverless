@@ -1,7 +1,8 @@
 /**
  * API Gateway HTTP API v2 adapter.
  * Transforms REST requests to Lambda events and returns HTTP responses.
- * Supports JSON and multipart/form-data for POST /compile.
+ * Supports JSON and multipart/form-data for POST /compile, plus explicit
+ * asynchronous batch enqueue via POST /batch.
  */
 import { handler as lambdaHandler } from "./handler.js";
 import { validateRestPayloadSize, validateDocumentId } from "@/core/validate.js";
@@ -86,6 +87,9 @@ export async function handler(event: Record<string, unknown>): Promise<{
     if (method === "POST" && (path === "/compile" || path?.startsWith("/compile"))) {
         return await handleCompile(bodyBuffer, bodyStr, contentType);
     }
+    if (method === "POST" && path === "/batch") {
+        return await handleBatchRequest(bodyStr);
+    }
     if (method === "GET" && (path === "/status" || path?.startsWith("/status/")) && id) {
         const statusRes = await handleStatus(id);
         if (statusRes.statusCode === 404) {
@@ -167,6 +171,29 @@ async function handleCompile(
         ...(payload.outputS3 !== undefined && { outputS3: payload.outputS3 }),
     } as Parameters<typeof lambdaHandler>[0], {});
     return toHttpResponse(res);
+}
+
+/** Explicit asynchronous batch endpoint; unlike /compile, one document is still enqueued. */
+async function handleBatchRequest(bodyStr: string | null) {
+    if (!bodyStr || bodyStr.trim().length === 0) {
+        return httpResponse(400, { error: "Request body is required" });
+    }
+    let payload: Record<string, unknown>;
+    try {
+        payload = JSON.parse(bodyStr);
+    } catch {
+        return httpResponse(400, { error: "Invalid JSON body" });
+    }
+    const documents = Array.isArray(payload.documents) ? payload.documents : null;
+    if (!documents || documents.length === 0) {
+        return httpResponse(400, { error: "documents array is required and must have at least one item" });
+    }
+    return toHttpResponse(await lambdaHandler({
+        documents,
+        action: "batch",
+        ...(payload.storeToS3 !== undefined && { storeToS3: payload.storeToS3 }),
+        ...(payload.outputS3 !== undefined && { outputS3: payload.outputS3 }),
+    } as Parameters<typeof lambdaHandler>[0], {}));
 }
 
 async function handleStatus(id: string) {

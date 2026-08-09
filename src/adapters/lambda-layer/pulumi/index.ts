@@ -239,6 +239,12 @@ if (enableApiGateway) {
     target: pulumi.interpolate`integrations/${integration.id}`,
   });
 
+  const batchRoute = new aws.apigatewayv2.Route("batch-route", {
+    apiId: api.id,
+    routeKey: "POST /batch",
+    target: pulumi.interpolate`integrations/${integration.id}`,
+  });
+
   const statusRoute = new aws.apigatewayv2.Route("status-route", {
     apiId: api.id,
     routeKey: "GET /status/{id}",

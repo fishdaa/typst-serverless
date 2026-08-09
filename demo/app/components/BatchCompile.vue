@@ -52,7 +52,7 @@ onUnmounted(stopPolling)
   <div class="card">
     <h2>Batch Compile (SQS)</h2>
     <p class="desc">
-      <code>POST /compile</code> with multiple <code>documents</code> and
+      <code>POST /batch</code> with one or more <code>documents</code> and
       <code>storeToS3: true</code> enqueues each one to SQS and returns a
       <code>batchId</code> right away — poll <code>GET /status/{batchId}</code> for
       per-document results via the DynamoDB <code>batch_id</code> index.
