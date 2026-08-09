@@ -194,7 +194,7 @@ const lambda = new aws.lambda.Function("typst-compile", {
   handler: "adapters/lambda-layer/index.handler",
   code: new pulumi.asset.FileArchive(distDir),
   role: role.arn,
-  timeout: 60,
+  timeout: 90,
   memorySize: 1024,
   layers: typstLayer ? [typstLayer.arn] : [],
   environment: {
