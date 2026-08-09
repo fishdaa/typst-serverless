@@ -10,6 +10,11 @@ const sizeKey = ref(POSTER_SIZES[0].key)
 const size = computed(() => POSTER_SIZES.find((s) => s.key === sizeKey.value)!)
 const ppi = ref(150)
 
+// Caps typst's PNG render/encode memory to a fixed budget regardless of the
+// poster's pixel dimensions (it renders in bands instead of the whole image
+// at once) — keeps large-format exports within the Lambda's memory limit.
+const MAX_MEMORY_MB = 512
+
 const pixelDims = computed(() => ({
   w: Math.round(size.value.widthIn * ppi.value),
   h: Math.round(size.value.heightIn * ppi.value)
@@ -59,6 +64,7 @@ async function runSingle() {
       mainTyp: textToBase64(posterTyp(size.value, single.value)),
       outputFormat: 'png',
       ppi: ppi.value,
+      maxMemory: MAX_MEMORY_MB,
       assets: [logo, background],
       storeToS3: true
     })
@@ -106,6 +112,7 @@ async function runBatch() {
       mainTyp: textToBase64(posterTyp(size.value, data)),
       outputFormat: 'png' as const,
       ppi: ppi.value,
+      maxMemory: MAX_MEMORY_MB,
       assets: [logo, await uploadBackground(data.accent)],
       storeToS3: true
     })))
