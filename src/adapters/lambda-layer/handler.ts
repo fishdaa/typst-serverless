@@ -21,7 +21,7 @@ import { validateAssets } from "@/core/assets.js";
 import { resolveMainTyp, ASSET_PREFIX } from "@/adapters/lambda-layer/resolve-input.js";
 import { StepLog, pollChildRss, dirSizeMB } from "@/adapters/lambda-layer/telemetry.js";
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
-import { DynamoDBDocumentClient, QueryCommand } from "@aws-sdk/lib-dynamodb";
+import { DynamoDBDocumentClient, QueryCommand, UpdateCommand } from "@aws-sdk/lib-dynamodb";
 import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand, ListObjectsV2Command, CopyObjectCommand } from "@aws-sdk/client-s3";
 import { Upload } from "@aws-sdk/lib-storage";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
@@ -57,8 +57,14 @@ type DynamoBatchItem = {
     s3_key?: string;
     s3_bucket?: string;
     error?: string;
+    updatedAt?: number;
 };
 type BatchStatusResult = { documentId: string; status: string; s3Url?: string; error?: string };
+
+// Lambda is configured for 90 seconds. Add a small buffer so a hard timeout is
+// reconciled by the next status poll instead of leaving the job at "compiling".
+const STALE_COMPILE_MS = 100_000;
+const TIMEOUT_ERROR = "Compilation timed out after 90 seconds; the Lambda worker was terminated.";
 
 const sqs = new SQSClient(
     endpoint
@@ -510,8 +516,13 @@ async function handleBatchStatus(batchId: string) {
     // Resolve presigned URLs (they're async)
     const resolved = await Promise.all(
         results.map(async (r: BatchStatusResult) => {
+            const item = ((Items || []) as DynamoBatchItem[]).find((i) => i.document_id === r.documentId);
+            if (item && await reconcileStaleCompile(item)) {
+                r.status = "failed";
+                r.error = TIMEOUT_ERROR;
+                return r;
+            }
             if (r.status === "completed") {
-                const item = ((Items || []) as DynamoBatchItem[]).find((i) => i.document_id === r.documentId);
                 if (item?.s3_key) {
                     const bucket = item.s3_bucket || OUTPUT_BUCKET;
                     if (bucket) {
@@ -528,6 +539,33 @@ async function handleBatchStatus(batchId: string) {
     );
 
     return lambdaResponse(200, { batchId, results: resolved });
+}
+
+/** Mark jobs killed by Lambda's hard timeout as failed, with a race-safe update. */
+async function reconcileStaleCompile(item: DynamoBatchItem): Promise<boolean> {
+    if (item.status !== "compiling" || !item.updatedAt || Date.now() - item.updatedAt < STALE_COMPILE_MS) {
+        return false;
+    }
+    try {
+        await dynamo.send(new UpdateCommand({
+            TableName: STATE_TABLE,
+            Key: { document_id: item.document_id },
+            UpdateExpression: "SET #status = :failed, #error = :error, #updatedAt = :now",
+            ConditionExpression: "#status = :compiling AND #updatedAt = :observed",
+            ExpressionAttributeNames: { "#status": "status", "#error": "error", "#updatedAt": "updatedAt" },
+            ExpressionAttributeValues: {
+                ":failed": "failed",
+                ":compiling": "compiling",
+                ":error": TIMEOUT_ERROR,
+                ":observed": item.updatedAt,
+                ":now": Date.now(),
+            },
+        }));
+        return true;
+    } catch (err) {
+        if ((err as { name?: string }).name === "ConditionalCheckFailedException") return false;
+        throw err;
+    }
 }
 
 async function handleSqs(event: LambdaEvent) {
