@@ -99,8 +99,17 @@ export async function handler(event: Record<string, unknown>): Promise<{
     if (method === "POST" && path === "/assets") {
         return await handleUploadAsset(bodyBuffer, bodyStr, contentType);
     }
-    if (method === "GET" && path?.startsWith("/assets/download/") && id) {
-        const res = await lambdaHandler({ action: "presigndownloadasset", assetPath: id } as Parameters<typeof lambdaHandler>[0], {});
+    if (method === "GET" && path?.startsWith("/assets/download/")) {
+        // HTTP API v2 normally provides the greedy {path+} value in
+        // pathParameters, but some proxies/local adapters omit it. Recover the
+        // path from rawPath so downloads do not become an adapter-level 404.
+        const pathFromUrl = path.slice("/assets/download/".length)
+            .split("/")
+            .map((part) => decodeURIComponent(part))
+            .join("/");
+        const assetPath = id || pathFromUrl;
+        if (!assetPath) return httpResponse(404, { error: "Asset path is required" });
+        const res = await lambdaHandler({ action: "presigndownloadasset", assetPath } as Parameters<typeof lambdaHandler>[0], {});
         return toHttpResponse(res);
     }
     if (method === "GET" && path === "/assets") {
