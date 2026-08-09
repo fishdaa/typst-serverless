@@ -12,13 +12,14 @@ echo ""
 # Check Node.js
 if ! command -v node &>/dev/null; then
   echo "Error: Node.js is required but not found."
-  echo "Install Node.js 20+ or run: devbox shell   (provides Node.js 24)"
+  echo "Install Node.js 24+ or run: devbox shell   (provides Node.js 24)"
   exit 1
 fi
 
 NODE_VER=$(node -v | sed 's/v//' | cut -d. -f1)
-if [[ "$NODE_VER" -lt 20 ]]; then
-  echo "Warning: Node.js 20+ recommended; you have $(node -v)"
+if [[ "$NODE_VER" -lt 24 ]]; then
+  echo "Error: Node.js 24+ is required; you have $(node -v)"
+  exit 1
 fi
 
 # Optional: suggest Devbox

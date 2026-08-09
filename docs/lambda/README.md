@@ -84,7 +84,7 @@ link as `layerArn` (`pulumi stack output layerArn`).
 
 ### Prerequisites
 
-- Node.js 20+
+- Node.js 24+
 - [Pulumi CLI](https://www.pulumi.com/docs/install/)
 - AWS CLI configured with credentials
 

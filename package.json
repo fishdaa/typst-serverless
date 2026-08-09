@@ -3,6 +3,9 @@
   "version": "0.1.7",
   "description": "Containerized and serverless Typst compilation",
   "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
   "scripts": {
     "build": "tsc && tsc-alias -p tsconfig.json",
     "test": "devbox run test",
