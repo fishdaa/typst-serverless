@@ -23,6 +23,8 @@ export interface CompileOptions {
   pdfStandard?: string;
   /** Pixels per inch for PNG export (e.g. large-format posters). Typst default is 144. */
   ppi?: number;
+  /** Caps peak memory used while rendering a page to PNG, in mebibytes. Unset uses typst's built-in budget. */
+  maxMemory?: number;
 }
 
 function inferFormat(outputPath: string): string {
@@ -52,6 +54,9 @@ export async function compile(
     }
     if (format === "png" && opts.ppi !== undefined && Number.isFinite(opts.ppi) && opts.ppi > 0) {
         args.push("--ppi", String(opts.ppi));
+    }
+    if (format === "png" && opts.maxMemory !== undefined && Number.isFinite(opts.maxMemory) && opts.maxMemory > 0) {
+        args.push("--max-memory", String(opts.maxMemory));
     }
     args.push(inputPath, outputPath);
 

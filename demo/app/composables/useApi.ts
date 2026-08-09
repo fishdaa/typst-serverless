@@ -25,6 +25,8 @@ export interface CompileDoc {
   pdfStandard?: string
   /** Pixels per inch for PNG export (e.g. large-format posters). Typst default is 144. */
   ppi?: number
+  /** Caps peak memory used while rendering a page to PNG, in mebibytes. */
+  maxMemory?: number
 }
 
 export interface CompileResult {

@@ -15,6 +15,7 @@ const OUTPUT = process.env.TYPST_OUTPUT || "output.pdf";
 const PIPE = process.env.TYPST_PIPE === "true";
 const STATE = process.env.TYPST_STATE === "true";
 const PPI = process.env.TYPST_PPI ? Number(process.env.TYPST_PPI) : undefined;
+const MAX_MEMORY = process.env.TYPST_MAX_MEMORY ? Number(process.env.TYPST_MAX_MEMORY) : undefined;
 
 const inputPath = join(WORKSPACE, MAIN);
 const outputPath = join(WORKSPACE, OUTPUT);
@@ -31,7 +32,10 @@ async function main(): Promise<void> {
             await state.update(docId, { status: "compiling" });
         }
 
-        await compile(inputPath, outputPath, PPI !== undefined ? { ppi: PPI } : {});
+        const compileOpts: { ppi?: number; maxMemory?: number } = {};
+        if (PPI !== undefined) compileOpts.ppi = PPI;
+        if (MAX_MEMORY !== undefined) compileOpts.maxMemory = MAX_MEMORY;
+        await compile(inputPath, outputPath, compileOpts);
 
         if (STATE && docId) {
             const state = createFileState(stateDir);

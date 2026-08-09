@@ -132,6 +132,8 @@ interface LambdaEvent {
   pdfStandard?: string;
   /** Pixels per inch for PNG export (large-format posters etc). */
   ppi?: number;
+  /** Caps peak memory used while rendering a page to PNG, in mebibytes. */
+  maxMemory?: number;
   documents?: unknown[];
   [key: string]: unknown;
 }
@@ -217,7 +219,7 @@ async function handleCompile(event: LambdaEvent) {
         const format = (event.outputFormat || event.format || "pdf").toLowerCase();
         const ext = ["pdf", "svg", "png"].includes(format) ? format : "pdf";
         const outputPath = join(workDir, `output.${ext}`);
-        const compileOpts: { typstPath: string; format: string; pdfStandard?: string; ppi?: number } = {
+        const compileOpts: { typstPath: string; format: string; pdfStandard?: string; ppi?: number; maxMemory?: number } = {
             typstPath: TYPST_PATH,
             format: ext,
         };
@@ -228,6 +230,13 @@ async function handleCompile(event: LambdaEvent) {
                 return lambdaResponse(400, { error: "ppi must be a positive number (<= 10000)" });
             }
             compileOpts.ppi = ppi;
+        }
+        if (ext === "png" && event.maxMemory !== undefined) {
+            const maxMemory = Number(event.maxMemory);
+            if (!Number.isFinite(maxMemory) || maxMemory <= 0) {
+                return lambdaResponse(400, { error: "maxMemory must be a positive number (mebibytes)" });
+            }
+            compileOpts.maxMemory = maxMemory;
         }
         await compile(mainPath, outputPath, compileOpts);
 
