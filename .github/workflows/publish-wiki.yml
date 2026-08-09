@@ -16,10 +16,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Check out source documentation
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Check out GitHub wiki
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           repository: ${{ github.repository }}.wiki
           path: wiki

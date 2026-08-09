@@ -39,6 +39,7 @@ else
   fi
 fi
 
+CARGO_TARGET_DIR="${CARGO_TARGET_DIR:-$SRC_DIR/target}"
 REV="$(git -C "$SRC_DIR" rev-parse HEAD)$(git -C "$SRC_DIR" diff --quiet 2>/dev/null || echo '-dirty')"
 
 if [[ -x "$OUT_BIN" && -f "$STAMP_FILE" && "$(cat "$STAMP_FILE")" == "$REV" ]]; then
@@ -47,9 +48,9 @@ if [[ -x "$OUT_BIN" && -f "$STAMP_FILE" && "$(cat "$STAMP_FILE")" == "$REV" ]]; 
 fi
 
 echo "==> Building typst-cli (release) from $SRC_DIR @ $REV"
-(cd "$SRC_DIR" && cargo build --release --locked -p typst-cli)
+(cd "$SRC_DIR" && CARGO_TARGET_DIR="$CARGO_TARGET_DIR" cargo build --release --locked -p typst-cli)
 
-cp "$SRC_DIR/target/release/typst" "$OUT_BIN"
+cp "$CARGO_TARGET_DIR/release/typst" "$OUT_BIN"
 chmod +x "$OUT_BIN"
 echo "$REV" > "$STAMP_FILE"
 echo "==> Built $OUT_BIN"
