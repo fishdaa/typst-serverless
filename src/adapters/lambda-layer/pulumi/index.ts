@@ -116,7 +116,7 @@ if (enableSqs) {
     visibilityTimeoutSeconds: 120,
     messageRetentionSeconds: 345600, // 4 days
     redrivePolicy: dlq.arn.apply((arn) =>
-      JSON.stringify({ deadLetterTargetArn: arn, maxReceiveCount: 3 })
+      JSON.stringify({ deadLetterTargetArn: arn, maxReceiveCount: 1 })
     ),
   });
   batchQueueArn = batchQueue.arn;
