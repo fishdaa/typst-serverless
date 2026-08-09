@@ -25,6 +25,8 @@ export interface CompileOptions {
   ppi?: number;
   /** Caps peak memory used while rendering a page to PNG, in mebibytes. Unset uses typst's built-in budget. */
   maxMemory?: number;
+  /** Called with the spawned typst process's pid, e.g. so a caller can sample its RSS while it runs. */
+  onSpawn?: (pid: number) => void;
 }
 
 function inferFormat(outputPath: string): string {
@@ -63,6 +65,7 @@ export async function compile(
     return new Promise((resolve, reject) => {
         mkdirSync(dirname(outputPath), { recursive: true });
         const proc = spawn(typstPath, args, { stdio: ["ignore", "pipe", "pipe"] });
+        if (proc.pid !== undefined) opts.onSpawn?.(proc.pid);
         let stderr = "";
         proc.stderr?.on("data", (d: Buffer | string) => {
             stderr += d.toString();

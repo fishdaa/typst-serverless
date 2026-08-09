@@ -19,6 +19,7 @@ import {
 } from "@/core/validate.js";
 import { validateAssets } from "@/core/assets.js";
 import { resolveMainTyp, ASSET_PREFIX } from "@/adapters/lambda-layer/resolve-input.js";
+import { StepLog, pollChildRss, dirSizeMB } from "@/adapters/lambda-layer/telemetry.js";
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocumentClient, QueryCommand } from "@aws-sdk/lib-dynamodb";
 import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand, ListObjectsV2Command, CopyObjectCommand } from "@aws-sdk/client-s3";
@@ -204,6 +205,17 @@ async function handleCompile(event: LambdaEvent) {
     const storeToS3 = !!(event.storeToS3 && (OUTPUT_BUCKET || outputS3?.bucket));
     const state = getState();
     const batchId = typeof event.batchId === "string" ? event.batchId : undefined;
+    const log = new StepLog({ documentId, batchId, action: "compile" });
+    log.emit("start", {
+        outputFormat: event.outputFormat || event.format,
+        ppi: event.ppi,
+        maxMemory: event.maxMemory,
+        storeToS3,
+        assetsCount: event.assets?.length ?? 0,
+        fontsCount: event.fonts?.length ?? 0,
+        extraTypsCount: event.extraTyps?.length ?? 0,
+        hasData: event.data !== undefined,
+    });
 
     let workDir: string | undefined;
     try {
@@ -213,9 +225,11 @@ async function handleCompile(event: LambdaEvent) {
             ...(batchId && { batch_id: batchId }),
         });
         await state.update(documentId, { status: "compiling" });
+        log.emit("state-compiling");
 
         const { workDir: wd, mainPath } = await resolveMainTyp(event, s3, ASSETS_BUCKET);
         workDir = wd;
+        log.emit("resolve-input", { inputMB: await dirSizeMB(workDir) });
         const format = (event.outputFormat || event.format || "pdf").toLowerCase();
         const ext = ["pdf", "svg", "png"].includes(format) ? format : "pdf";
         const outputPath = join(workDir, `output.${ext}`);
@@ -238,11 +252,20 @@ async function handleCompile(event: LambdaEvent) {
             }
             compileOpts.maxMemory = maxMemory;
         }
-        await compile(mainPath, outputPath, compileOpts);
+        let rssPoll: { stop(): number } | undefined;
+        await compile(mainPath, outputPath, {
+            ...compileOpts,
+            onSpawn: (pid) => {
+                rssPoll = pollChildRss(pid);
+            },
+        });
+        const typstPeakRssMB = rssPoll?.stop();
+        log.emit("compile", { typstPeakRssMB });
 
         if (storeToS3) {
             const fs = await import("node:fs/promises");
             const outBuffer = await fs.readFile(outputPath);
+            log.emit("read-output", { outputMB: Math.round((outBuffer.length / 1024 / 1024) * 10) / 10 });
             const bucket = outputS3?.bucket ?? OUTPUT_BUCKET;
             if (!bucket) throw new Error("Output bucket not configured (TYPST_OUTPUT_BUCKET or outputS3.bucket)");
             const keyPrefix = (outputS3?.keyPrefix || "outputs/").replace(/\/?$/, "/");
@@ -262,6 +285,7 @@ async function handleCompile(event: LambdaEvent) {
                     ContentType: contentType,
                 })
             );
+            log.emit("s3-upload", { bucket, key: s3Key });
             await state.update(documentId, { status: "completed", s3_key: s3Key, s3_bucket: bucket });
             const url = await getSignedUrl(
                 s3,
@@ -271,12 +295,14 @@ async function handleCompile(event: LambdaEvent) {
             if (event.webhook?.url) {
                 invokeWebhook(event.webhook.url, { documentId, status: "completed", s3Url: url });
             }
+            log.emit("done", { status: "completed" });
             return lambdaResponse(200, { documentId, status: "completed", s3Url: url });
         }
 
         const fs = await import("node:fs/promises");
         const outBuffer = await fs.readFile(outputPath);
         await state.update(documentId, { status: "completed" });
+        log.emit("done", { status: "completed", outputMB: Math.round((outBuffer.length / 1024 / 1024) * 10) / 10 });
         if (event.webhook?.url) {
             invokeWebhook(event.webhook.url, {
                 documentId,
@@ -297,6 +323,7 @@ async function handleCompile(event: LambdaEvent) {
             isBase64Encoded: false,
         };
     } catch (err) {
+        log.emit("failed", { error: (err as Error).message });
         try {
             await state.update(documentId, { status: "failed", error: (err as Error).message });
         } catch {}
