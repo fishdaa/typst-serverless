@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { POSTER_SIZES, POSTER_BATCH_DATA, posterTyp, type PosterData } from '~/utils/samples'
 import { textToBase64, base64ToBlobUrl } from '~/utils/encoding'
-import { generatePosterBackground } from '~/utils/poster-background'
+import { generatePosterBackground, generatePosterBackgroundSvg } from '~/utils/poster-background'
 import type { AssetRef } from '~/composables/useApi'
 
 const { compile, compileBatch, getStatus, uploadAssetDirect } = useApi()
@@ -20,6 +20,7 @@ const pixelDims = computed(() => ({
   h: Math.round(size.value.heightIn * ppi.value)
 }))
 const megapixels = computed(() => ((pixelDims.value.w * pixelDims.value.h) / 1_000_000).toFixed(1))
+const backgroundExtension = computed(() => size.value.key === '2x5' ? 'png' : 'svg')
 
 let logoBase64: string | undefined
 async function loadLogo(): Promise<AssetRef> {
@@ -34,15 +35,20 @@ async function loadLogo(): Promise<AssetRef> {
 }
 
 /**
- * Background image sized in pixels to exactly match the poster at the chosen PPI.
- * Uploaded straight to S3 via a presigned URL (not embedded as base64) since
- * print-resolution backgrounds routinely exceed the API Gateway payload limit.
+ * The default 2 x 5 ft poster uses an exact-size PNG. Larger posters use a
+ * resolution-independent SVG so the browser never allocates their print-sized
+ * raster. Both assets are uploaded directly to S3 via a presigned URL.
  */
 async function uploadBackground(accent: string): Promise<AssetRef> {
-  const blob = await generatePosterBackground(pixelDims.value.w, pixelDims.value.h, accent)
-  const assetPath = `demo/poster-bg-${crypto.randomUUID()}.png`
-  await uploadAssetDirect({ assetPath, blob, contentType: 'image/png' })
-  return { name: 'background.png', assetPath }
+  const useSvg = size.value.key !== '2x5'
+  const blob = useSvg
+    ? generatePosterBackgroundSvg(pixelDims.value.w, pixelDims.value.h, accent)
+    : await generatePosterBackground(pixelDims.value.w, pixelDims.value.h, accent)
+  const extension = useSvg ? 'svg' : 'png'
+  const contentType = useSvg ? 'image/svg+xml' : 'image/png'
+  const assetPath = `demo/poster-bg-${crypto.randomUUID()}.${extension}`
+  await uploadAssetDirect({ assetPath, blob, contentType })
+  return { name: `background.${extension}`, assetPath }
 }
 
 // --- Single poster ---
@@ -61,7 +67,7 @@ async function runSingle() {
     const logo = await loadLogo()
     const background = await uploadBackground(single.value.accent)
     const result = await compile({
-      mainTyp: textToBase64(posterTyp(size.value, single.value)),
+      mainTyp: textToBase64(posterTyp(size.value, single.value, backgroundExtension.value)),
       outputFormat: 'png',
       ppi: ppi.value,
       maxMemory: MAX_MEMORY_MB,
@@ -109,7 +115,7 @@ async function runBatch() {
   try {
     const logo = await loadLogo()
     const docs = await Promise.all(rows.value.map(async (data) => ({
-      mainTyp: textToBase64(posterTyp(size.value, data)),
+      mainTyp: textToBase64(posterTyp(size.value, data, backgroundExtension.value)),
       outputFormat: 'png' as const,
       ppi: ppi.value,
       maxMemory: MAX_MEMORY_MB,
@@ -139,9 +145,9 @@ onUnmounted(stopPolling)
     <h2>Large-Format Posters</h2>
     <p class="desc">
       Renders at true physical size (e.g. 24in x 60in) with a full-bleed
-      background image generated in-browser at the <em>exact same pixel
-      dimensions as the poster</em> (width&times;height in inches &times; PPI),
-      then exports PNG at print resolution — a multi-megapixel raster workload.
+      background image generated in-browser with the poster's exact aspect ratio,
+      then scaled and exported by Typst at print resolution — a multi-megapixel
+      raster workload.
     </p>
     <div class="row" style="margin-bottom: 14px">
       <div>

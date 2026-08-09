@@ -110,15 +110,14 @@ export const POSTER_BATCH_DATA: PosterData[] = [
 
 /**
  * Large-format poster source. Rendered at full physical size (e.g. 24in x 60in)
- * with a full-bleed background image generated at the same pixel dimensions as
- * the poster itself — this is the workload the fishdaa/typst fork's
- * image-resampling fast path targets.
+ * with a full-bleed background image scaled to the poster dimensions — this is
+ * the workload the fishdaa/typst fork's image-resampling fast path targets.
  */
-export function posterTyp(size: PosterSize, data: PosterData): string {
+export function posterTyp(size: PosterSize, data: PosterData, backgroundExtension = 'png'): string {
   return `#set page(width: ${size.widthIn}in, height: ${size.heightIn}in, margin: 0in, fill: white)
 #set text(font: "Liberation Sans")
 
-#place(top + left, image("background.png", width: 100%, height: 100%))
+  #place(top + left, image("background.${backgroundExtension}", width: 100%, height: 100%))
 
 #pad(1in)[
   #align(center + horizon)[

@@ -29,7 +29,7 @@ function formatBytes(bytes: number) {
 }
 
 async function refresh() {
-  const res = await listAssets('demo/')
+  const res = await listAssets()
   assets.value = res.assets
 }
 
@@ -80,7 +80,10 @@ async function download(path: string) {
     link.download = path.split('/').pop() || 'asset'
     link.target = '_blank'
     link.rel = 'noopener'
+    link.style.display = 'none'
+    document.body.appendChild(link)
     link.click()
+    link.remove()
   } catch (e) {
     error.value = (e as Error).message
   } finally {
@@ -152,7 +155,7 @@ onMounted(refresh)
       <div class="asset-list-heading">
         <div>
           <h3>Stored assets</h3>
-          <p class="helper">Files under <code>demo/</code></p>
+          <p class="helper">All cached assets</p>
         </div>
         <button class="secondary refresh-button" :disabled="busy" @click="refresh">Refresh</button>
       </div>
