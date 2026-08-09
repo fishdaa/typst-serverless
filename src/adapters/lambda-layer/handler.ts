@@ -77,6 +77,23 @@ const BATCH_QUEUE_URL = process.env.TYPST_BATCH_QUEUE_URL;
 const USE_IN_MEMORY_STATE = process.env.TYPST_USE_IN_MEMORY_STATE === "true" || process.env.TYPST_USE_IN_MEMORY_STATE === "1";
 const inMemoryState = USE_IN_MEMORY_STATE ? createInMemoryState() : null;
 
+function outputFilename(key: string): string {
+    const name = key.split("/").pop() || "typst-output";
+    return name.replace(/[\r\n"]/g, "_");
+}
+
+function presignOutput(bucket: string, key: string): Promise<string> {
+    return getSignedUrl(
+        s3,
+        new GetObjectCommand({
+            Bucket: bucket,
+            Key: key,
+            ResponseContentDisposition: `attachment; filename="${outputFilename(key)}"`,
+        }),
+        { expiresIn: PRESIGNED_EXPIRY },
+    );
+}
+
 function getState() {
     if (inMemoryState) return inMemoryState;
     return createDynamoDBState({ tableName: STATE_TABLE, documentClient: dynamo });
@@ -302,11 +319,7 @@ async function handleCompile(event: LambdaEvent) {
             await upload.done();
             log.emit("s3-upload", { bucket, key: s3Key });
             await state.update(documentId, { status: "completed", s3_key: s3Key, s3_bucket: bucket });
-            const url = await getSignedUrl(
-                s3,
-                new GetObjectCommand({ Bucket: bucket, Key: s3Key }),
-                { expiresIn: PRESIGNED_EXPIRY }
-            );
+            const url = await presignOutput(bucket, s3Key);
             if (event.webhook?.url) {
                 invokeWebhook(event.webhook.url, { documentId, status: "completed", s3Url: url });
             }
@@ -384,11 +397,7 @@ async function handleStatus(event: LambdaEvent) {
     if (doc.status === "completed" && doc.s3_key) {
         const bucket = doc.s3_bucket || OUTPUT_BUCKET;
         if (bucket) {
-            out.s3Url = await getSignedUrl(
-                s3,
-                new GetObjectCommand({ Bucket: bucket, Key: doc.s3_key }),
-                { expiresIn: PRESIGNED_EXPIRY }
-            );
+            out.s3Url = await presignOutput(bucket, doc.s3_key);
         }
     }
     return lambdaResponse(200, out);
@@ -416,11 +425,7 @@ async function handleRetrieve(event: LambdaEvent) {
         if (!bucket) {
             return lambdaResponse(500, { error: "Output bucket not configured" });
         }
-        const url = await getSignedUrl(
-            s3,
-            new GetObjectCommand({ Bucket: bucket, Key: doc.s3_key }),
-            { expiresIn: PRESIGNED_EXPIRY }
-        );
+        const url = await presignOutput(bucket, doc.s3_key);
         return lambdaResponse(200, { s3Url: url });
     }
     return lambdaResponse(400, {
@@ -500,11 +505,7 @@ async function handleBatchStatus(batchId: string) {
         if (item.status === "completed" && item.s3_key) {
             const bucket = item.s3_bucket || OUTPUT_BUCKET;
             if (bucket) {
-                getSignedUrl(
-                    s3,
-                    new GetObjectCommand({ Bucket: bucket, Key: item.s3_key }),
-                    { expiresIn: PRESIGNED_EXPIRY }
-                ).then((url: string) => {
+                presignOutput(bucket, item.s3_key).then((url: string) => {
                     r.s3Url = url;
                 });
             }
@@ -526,11 +527,7 @@ async function handleBatchStatus(batchId: string) {
                 if (item?.s3_key) {
                     const bucket = item.s3_bucket || OUTPUT_BUCKET;
                     if (bucket) {
-                        r.s3Url = await getSignedUrl(
-                            s3,
-                            new GetObjectCommand({ Bucket: bucket, Key: item.s3_key }),
-                            { expiresIn: PRESIGNED_EXPIRY }
-                        );
+                        r.s3Url = await presignOutput(bucket, item.s3_key);
                     }
                 }
             }

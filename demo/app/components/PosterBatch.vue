@@ -229,7 +229,7 @@ async function runBatch() {
           <td>{{ r.documentId }}</td>
           <td><span class="pill" :class="r.status">{{ r.status }}</span></td>
           <td>
-            <a v-if="r.s3Url" :href="r.s3Url" target="_blank" rel="noopener">Download</a>
+            <a v-if="r.s3Url" :href="r.s3Url" download rel="noopener">Download</a>
             <span v-else-if="r.error" class="status-line error">{{ r.error }}</span>
             <span v-else class="status-line muted">—</span>
           </td>
