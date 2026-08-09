@@ -14,12 +14,16 @@ const ppi = ref(150)
 // poster's pixel dimensions (it renders in bands instead of the whole image
 // at once) — keeps large-format exports within the Lambda's memory limit.
 const MAX_MEMORY_MB = 512
+// API Gateway HTTP APIs return after 30 seconds even though the Lambda timeout
+// is longer. Warn before sending poster renders large enough to approach that limit.
+const SYNC_WARNING_MP = 500
 
 const pixelDims = computed(() => ({
   w: Math.round(size.value.widthIn * ppi.value),
   h: Math.round(size.value.heightIn * ppi.value)
 }))
 const megapixels = computed(() => ((pixelDims.value.w * pixelDims.value.h) / 1_000_000).toFixed(1))
+const needsAsyncWarning = computed(() => (pixelDims.value.w * pixelDims.value.h) / 1_000_000 >= SYNC_WARNING_MP)
 const backgroundExtension = computed(() => size.value.key === '2x5' ? 'png' : 'svg')
 
 let logoBase64: string | undefined
@@ -167,6 +171,12 @@ onUnmounted(stopPolling)
       <span class="status-line muted">
         {{ pixelDims.w }}&times;{{ pixelDims.h }}px (~{{ megapixels }} MP)
       </span>
+    </div>
+    <div v-if="needsAsyncWarning" class="status-line warning" role="alert">
+      This is a large {{ megapixels }} MP render. The synchronous API request is
+      limited to 30 seconds by API Gateway and may return 503 even if Lambda
+      finishes successfully. Use <strong>Dynamic batch (SQS)</strong> below for
+      asynchronous processing and status polling.
     </div>
 
     <h3>Single poster</h3>

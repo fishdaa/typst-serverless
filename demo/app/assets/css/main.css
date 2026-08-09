@@ -269,6 +269,7 @@ button.secondary {
 
 .status-line.error { color: var(--error); }
 .status-line.success { color: var(--success); }
+.status-line.warning { color: #f5c76b; }
 .status-line.muted { color: var(--muted); }
 
 table {
