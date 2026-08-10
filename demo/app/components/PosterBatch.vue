@@ -9,6 +9,7 @@ const { compile, compileBatch, getStatus, uploadAssetDirect } = useApi()
 const sizeKey = ref(POSTER_SIZES[0].key)
 const size = computed(() => POSTER_SIZES.find((s) => s.key === sizeKey.value)!)
 const ppi = ref(150)
+const pngCompression = ref<'no-compression' | 'fastest' | 'fast' | 'balanced' | 'high'>('balanced')
 
 // Caps typst's PNG render/encode memory to a fixed budget regardless of the
 // poster's pixel dimensions (it renders in bands instead of the whole image
@@ -60,12 +61,14 @@ const single = ref<PosterData>({ ...POSTER_BATCH_DATA[0] })
 const loading = ref(false)
 const error = ref('')
 const previewUrl = ref('')
+const previewError = ref('')
 const elapsedMs = ref(0)
 
 async function runSingle() {
   loading.value = true
   error.value = ''
   previewUrl.value = ''
+  previewError.value = ''
   const started = performance.now()
   try {
     const logo = await loadLogo()
@@ -75,13 +78,14 @@ async function runSingle() {
       outputFormat: 'png',
       ppi: ppi.value,
       maxMemory: MAX_MEMORY_MB,
-      pngCompression: 'high',
+      pngCompression: pngCompression.value,
       assets: [logo, background],
       storeToS3: true
     })
     elapsedMs.value = Math.round(performance.now() - started)
     if (result.s3Url) previewUrl.value = result.s3Url
     else if (result.pdf) previewUrl.value = base64ToBlobUrl(result.pdf, result.format)
+    else previewError.value = 'Compile completed without an image URL.'
   } catch (e) {
     error.value = (e as Error).message
   } finally {
@@ -116,12 +120,15 @@ async function runBatch() {
       outputFormat: 'png' as const,
       ppi: ppi.value,
       maxMemory: MAX_MEMORY_MB,
-      pngCompression: 'high',
+      pngCompression: pngCompression.value,
       assets: [logo, await uploadBackground(data.accent)],
       storeToS3: true
     })))
     const enqueued = await compileBatch(docs, { storeToS3: true })
     batchId.value = enqueued.batchId
+    if (!Array.isArray(enqueued.documentIds)) {
+      throw new Error('Batch response did not include document IDs')
+    }
     results.value = enqueued.documentIds.map((id) => ({ documentId: id, status: 'pending' }))
     startPolling(
       () => getStatus(enqueued.batchId) as Promise<{ results: typeof results.value }>,
@@ -161,6 +168,16 @@ async function runBatch() {
           <option :value="300">300 (high quality print)</option>
         </select>
       </div>
+      <div>
+        <label>PNG compression</label>
+        <select v-model="pngCompression" style="width: auto">
+          <option value="no-compression">None (fastest)</option>
+          <option value="fastest">Fastest</option>
+          <option value="fast">Fast</option>
+          <option value="balanced">Balanced (recommended)</option>
+          <option value="high">High (smallest file)</option>
+        </select>
+      </div>
       <span class="status-line muted">
         {{ pixelDims.w }}&times;{{ pixelDims.h }}px (~{{ megapixels }} MP)
       </span>
@@ -190,9 +207,10 @@ async function runBatch() {
       <div>
         <label>Preview</label>
         <div class="preview">
-          <img v-if="previewUrl" :src="previewUrl" style="max-height:340px;object-fit:contain" />
+          <img v-if="previewUrl" :src="previewUrl" style="max-height:340px;object-fit:contain" @error="previewError = 'The compiled image could not be loaded from storage.'" />
           <span v-else style="color:#888">No output yet</span>
         </div>
+        <div v-if="previewError" class="status-line error">{{ previewError }}</div>
       </div>
     </div>
 

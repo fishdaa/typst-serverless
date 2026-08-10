@@ -28,6 +28,9 @@ export function useBatchPolling() {
             try {
                 const response = await fetchStatus()
                 if (cancelled) return
+                if (!Array.isArray(response?.results)) {
+                    throw new Error('Batch status response did not include results')
+                }
                 onResults(response.results)
                 if (response.results.length > 0 && response.results.every((r) => r.status === 'completed' || r.status === 'failed')) {
                     timer = undefined

@@ -23,6 +23,9 @@ async function run() {
       { storeToS3: true }
     )
     batchId.value = enqueued.batchId
+    if (!Array.isArray(enqueued.documentIds)) {
+      throw new Error('Batch response did not include document IDs')
+    }
     results.value = enqueued.documentIds.map((id) => ({ documentId: id, status: 'pending' }))
     startPolling(
       () => getStatus(enqueued.batchId) as Promise<{ results: typeof results.value }>,
