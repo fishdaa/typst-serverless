@@ -3,8 +3,8 @@
 A live, browser-driven demo of every feature the typst-serverless API supports:
 quick compile, multipart file upload, multi-file `#import` projects, JSON data
 binding, output formats (pdf/svg/png) and PDF standards, async compile + status
-polling, SQS-backed batch compile, presigned direct-to-S3 uploads, the asset
-cache, and webhooks.
+polling, SQS-backed batch compile, presigned direct-to-S3 uploads, cached
+templates + assets driven by per-document data, and webhooks.
 
 It's a static Nuxt (Vue) SPA — no server at runtime — that calls the deployed
 API directly from the browser. Hosting is S3 (private) + CloudFront (Origin
@@ -78,6 +78,16 @@ NUXT_PUBLIC_API_BASE=$(cd ../src/adapters/lambda-layer/pulumi && pulumi stack ou
   them as ephemeral job inputs, so demo runs don't accumulate in the asset
   library. **Asset Library** uses base64 under 4MB and a presigned direct PUT
   above it.
+- **Cached Campaign** is the inverse of Posters: the background PNG, the logo and
+  the poster template are presigned into the *persistent* library once
+  (`POST /assets/presign`), then every compile references them by `assetPath`
+  and carries only its own `poster.json` via `data` + `dataFile`. A four-poster
+  batch enqueues in ~1.4KB of JSON. Caches are listed back from
+  `assets/campaign/` so one staged in an earlier session can be reused without
+  re-uploading; the geometry is encoded in the cache id because the template
+  hard-codes the page size. Deleting a cache and re-enqueuing shows the
+  enqueue-time 400 — `assetPath` references are HEAD-checked before anything
+  reaches SQS.
 - The batch (SQS) tab requires the backend stack to have `enableSqs: true`
   set (`pulumi config set enableSqs true` in the backend's pulumi dir) — this
   demo stack has it on.

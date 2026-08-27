@@ -133,3 +133,60 @@ export function posterTyp(size: PosterSize, data: PosterData, backgroundExtensio
 ]
 `
 }
+
+/** Per-poster dynamic content, bound in as `poster.json` at compile time. */
+export interface CampaignPosterData {
+  title: string
+  subtitle: string
+  tagline: string
+  booth: string
+  accent: string
+}
+
+export const CAMPAIGN_POSTER_DATA: CampaignPosterData[] = [
+    { title: 'Robotics', subtitle: 'Automation & Control', tagline: 'Live arm demos every hour', booth: 'A1', accent: '#2563eb' },
+    { title: 'Clean Energy', subtitle: 'Storage & Grid', tagline: 'Meet the battery team', booth: 'B4', accent: '#16a34a' },
+    { title: 'Biotech', subtitle: 'Sequencing at Scale', tagline: 'Sample-to-answer in 20 min', booth: 'C2', accent: '#dc2626' },
+    { title: 'Quantum', subtitle: 'Error Correction', tagline: 'Ask about the 2026 roadmap', booth: 'D7', accent: '#9333ea' }
+]
+
+/**
+ * Campaign poster template — cached once in the asset library and referenced by
+ * every document via `mainTypAssetPath`.
+ *
+ * Unlike `posterTyp`, none of the per-poster content is interpolated here: the
+ * template reads `poster.json`, which each compile supplies through `data`.
+ * That is what lets one cached template serve an entire batch.
+ */
+export function campaignPosterTyp(size: PosterSize): string {
+    // Type and spacing scale with the poster's physical width, so one template
+    // reads correctly at 2x3ft and at 8x20ft. No font is pinned: the Lambda
+    // layer ships only Typst's default family, and naming an absent font just
+    // falls back silently.
+    const pt = (factor: number) => `${(size.widthIn * factor).toFixed(1)}pt`
+    const inches = (factor: number) => `${(size.widthIn * factor).toFixed(2)}in`
+    return `#set page(width: ${size.widthIn}in, height: ${size.heightIn}in, margin: 0in, fill: white)
+
+#let poster = json("poster.json")
+
+#place(top + left, image("background.png", width: 100%, height: 100%))
+
+#block(width: 100%, height: 100%, inset: ${inches(1 / 24)})[
+  #align(center + horizon)[
+    #block(width: 100%, fill: rgb(poster.accent), radius: ${pt(1)}, inset: ${inches(1 / 40)})[
+      #align(center)[
+        #text(size: ${pt(10)}, weight: "bold", fill: white)[#poster.title]
+      ]
+    ]
+    #v(${inches(1 / 40)})
+    #text(size: ${pt(4)}, fill: white)[#poster.subtitle]
+    #v(${inches(1 / 80)})
+    #text(size: ${pt(2.5)}, fill: rgb("#e5e7eb"))[#poster.tagline]
+    #v(${inches(1 / 16)})
+    #image("logo.png", width: ${inches(1 / 6)})
+    #v(${inches(1 / 40)})
+    #text(size: ${pt(3)}, weight: "bold", fill: white)[Booth #poster.booth]
+  ]
+]
+`
+}
