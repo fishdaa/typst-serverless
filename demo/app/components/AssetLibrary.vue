@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ASSET_DOC } from '~/utils/samples'
 import { fileToBase64, textToBase64, base64ToBlobUrl } from '~/utils/encoding'
+import { formatBytes } from '~/utils/format'
 import type { AssetEntry } from '~/composables/useApi'
 
 const { uploadAsset, listAssets, downloadAsset, deleteAsset, compile } = useApi()
@@ -14,19 +15,6 @@ const compilePath = ref('demo/logo.png')
 const previewUrl = ref('')
 
 const assetCountLabel = computed(() => `${assets.value.length} ${assets.value.length === 1 ? 'asset' : 'assets'}`)
-
-function formatBytes(bytes: number) {
-  if (!Number.isFinite(bytes) || bytes < 0) return '—'
-  if (bytes < 1024) return `${bytes} B`
-  const units = ['KB', 'MB', 'GB']
-  let value = bytes
-  let unit = -1
-  do {
-    value /= 1024
-    unit++
-  } while (value >= 1024 && unit < units.length - 1)
-  return `${value.toFixed(value >= 10 ? 0 : 1)} ${units[unit]}`
-}
 
 async function refresh() {
   const res = await listAssets()

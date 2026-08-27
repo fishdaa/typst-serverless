@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { POSTER_SIZES, POSTER_BATCH_DATA, posterTyp, type PosterData } from '~/utils/samples'
 import { textToBase64, base64ToBlobUrl } from '~/utils/encoding'
+import { formatBytes } from '~/utils/format'
 import { generatePosterBackground, generatePosterBackgroundSvg } from '~/utils/poster-background'
 import type { AssetRef } from '~/composables/useApi'
 
@@ -8,8 +9,8 @@ const { compile, compileBatch, getStatus, uploadAssetDirect } = useApi()
 
 const sizeKey = ref(POSTER_SIZES[0].key)
 const size = computed(() => POSTER_SIZES.find((s) => s.key === sizeKey.value)!)
-const ppi = ref(150)
-const pngCompression = ref<'no-compression' | 'fastest' | 'fast' | 'balanced' | 'high'>('balanced')
+const ppi = ref(72)
+const pngCompression = ref<'no-compression' | 'fastest' | 'fast' | 'balanced' | 'high'>('fastest')
 
 // Caps typst's PNG render/encode memory to a fixed budget regardless of the
 // poster's pixel dimensions (it renders in bands instead of the whole image
@@ -63,12 +64,14 @@ const error = ref('')
 const previewUrl = ref('')
 const previewError = ref('')
 const elapsedMs = ref(0)
+const outputBytes = ref(0)
 
 async function runSingle() {
   loading.value = true
   error.value = ''
   previewUrl.value = ''
   previewError.value = ''
+  outputBytes.value = 0
   const started = performance.now()
   try {
     const logo = await loadLogo()
@@ -83,6 +86,8 @@ async function runSingle() {
       storeToS3: true
     })
     elapsedMs.value = Math.round(performance.now() - started)
+    // Older deployments don't report sizeBytes; derive it from the inline base64 payload.
+    outputBytes.value = result.sizeBytes ?? (result.pdf ? Math.floor((result.pdf.length * 3) / 4) : 0)
     if (result.s3Url) previewUrl.value = result.s3Url
     else if (result.pdf) previewUrl.value = base64ToBlobUrl(result.pdf, result.format)
     else previewError.value = 'Compile completed without an image URL.'
@@ -172,9 +177,9 @@ async function runBatch() {
         <label>PNG compression</label>
         <select v-model="pngCompression" style="width: auto">
           <option value="no-compression">None (fastest)</option>
-          <option value="fastest">Fastest</option>
+          <option value="fastest">Fastest (recommended)</option>
           <option value="fast">Fast</option>
-          <option value="balanced">Balanced (recommended)</option>
+          <option value="balanced">Balanced</option>
           <option value="high">High (smallest file)</option>
         </select>
       </div>
@@ -200,7 +205,9 @@ async function runBatch() {
         <input v-model="single.accent" type="color" style="width: auto" />
         <div class="row" style="margin-top: 10px">
           <button :disabled="loading" @click="runSingle">{{ loading ? 'Rendering…' : 'Generate poster PNG' }}</button>
-          <span v-if="elapsedMs && !loading" class="status-line muted">{{ elapsedMs }}ms</span>
+          <span v-if="elapsedMs && !loading" class="status-line muted">
+            {{ elapsedMs }}ms<template v-if="outputBytes"> &middot; {{ formatBytes(outputBytes) }}</template>
+          </span>
         </div>
         <div v-if="error" class="status-line error">{{ error }}</div>
       </div>

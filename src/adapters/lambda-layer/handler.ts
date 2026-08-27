@@ -334,7 +334,7 @@ async function handleCompile(event: LambdaEvent) {
                 invokeWebhook(event.webhook.url, { documentId, status: "completed", s3Url: url });
             }
             log.emit("done", { status: "completed" });
-            return lambdaResponse(200, { documentId, status: "completed", s3Url: url });
+            return lambdaResponse(200, { documentId, status: "completed", s3Url: url, sizeBytes: outputBytes });
         }
 
         const fs = await import("node:fs/promises");
@@ -357,6 +357,7 @@ async function handleCompile(event: LambdaEvent) {
                 status: "completed",
                 pdf: outBuffer.toString("base64"),
                 format: ext,
+                sizeBytes: outBuffer.length,
             }),
             isBase64Encoded: false,
         };

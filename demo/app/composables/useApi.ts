@@ -37,6 +37,8 @@ export interface CompileResult {
   pdf?: string
   format?: string
   s3Url?: string
+  /** Size of the compiled output in bytes. */
+  sizeBytes?: number
   error?: string
 }
 
