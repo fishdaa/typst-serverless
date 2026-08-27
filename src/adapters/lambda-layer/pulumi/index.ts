@@ -19,6 +19,15 @@ if (lambdaArchitecture !== "x86_64" && lambdaArchitecture !== "arm64") {
   throw new Error("lambdaArchitecture must be x86_64 or arm64");
 }
 const customerOutputBuckets = config.get("customerOutputBuckets")?.split(",").map((s) => s.trim()).filter(Boolean) ?? [];
+// Ephemeral presigned job uploads (uploads/<jobId>/) expire on this schedule;
+// the curated asset library (assets/) is never expired.
+const uploadRetentionDays = config.getNumber("uploadRetentionDays") ?? 1;
+// Per-object presigned upload ceiling. Signed into each URL, so a leaked URL
+// cannot be used to write more than this.
+const maxUploadMB = config.getNumber("maxUploadMB") ?? 256;
+// Origins allowed to PUT directly to presigned URLs. Narrow this in production:
+// "*" is safe cryptographically but lets any page drive an upload it has a URL for.
+const uploadAllowedOrigins = config.get("uploadAllowedOrigins")?.split(",").map((s) => s.trim()).filter(Boolean) ?? ["*"];
 const projectRoot = path.resolve(__dirname, "../../../..");
 
 // DynamoDB table: document_id (PK), status, s3_key, batch_id, timestamps
@@ -59,15 +68,36 @@ const inputBucket = new aws.s3.BucketV2("typst-input", {
 
 // Allow browsers to PUT directly to presigned upload URLs (bypasses the API
 // Gateway/Lambda payload limit for large assets like print-resolution poster
-// backgrounds).
+// backgrounds). ETag is exposed so a client can confirm/dedupe what it stored.
 new aws.s3.BucketCorsConfigurationV2("typst-input-cors", {
   bucket: inputBucket.id,
   corsRules: [
     {
-      allowedMethods: ["PUT"],
-      allowedOrigins: ["*"],
+      allowedMethods: ["PUT", "HEAD", "GET"],
+      allowedOrigins: uploadAllowedOrigins,
       allowedHeaders: ["*"],
+      exposeHeaders: ["ETag"],
       maxAgeSeconds: 3600,
+    },
+  ],
+});
+
+// Expire ephemeral job uploads. Without this, every one-off presigned input
+// (poster backgrounds, generated data files) accumulates in the bucket forever.
+new aws.s3.BucketLifecycleConfigurationV2("typst-input-lifecycle", {
+  bucket: inputBucket.id,
+  rules: [
+    {
+      id: "expire-job-uploads",
+      status: "Enabled",
+      filter: { prefix: "uploads/" },
+      expiration: { days: uploadRetentionDays },
+    },
+    {
+      id: "abort-incomplete-multipart-uploads",
+      status: "Enabled",
+      filter: { prefix: "" },
+      abortIncompleteMultipartUpload: { daysAfterInitiation: 1 },
     },
   ],
 });
@@ -201,6 +231,7 @@ const lambdaEnv: Record<string, pulumi.Output<string>> = {
   TYPST_INPUT_BUCKET: inputBucket.id,
   TYPST_ASSETS_BUCKET: inputBucket.id,
   TYPST_PATH: pulumi.output("/opt/bin/typst"),
+  TYPST_MAX_UPLOAD_BYTES: pulumi.output(String(maxUploadMB * 1024 * 1024)),
 };
 if (enableSqs && batchQueue) {
   lambdaEnv.TYPST_BATCH_QUEUE_URL = batchQueue.url;
@@ -278,6 +309,12 @@ if (enableApiGateway) {
   const presignUploadAssetRoute = new aws.apigatewayv2.Route("presign-upload-asset-route", {
     apiId: api.id,
     routeKey: "POST /assets/presign",
+    target: pulumi.interpolate`integrations/${integration.id}`,
+  });
+
+  const presignUploadsRoute = new aws.apigatewayv2.Route("presign-uploads-route", {
+    apiId: api.id,
+    routeKey: "POST /uploads",
     target: pulumi.interpolate`integrations/${integration.id}`,
   });
 

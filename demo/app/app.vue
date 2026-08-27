@@ -7,6 +7,7 @@ import DataBinding from '~/components/DataBinding.vue'
 import AsyncStatus from '~/components/AsyncStatus.vue'
 import BatchCompile from '~/components/BatchCompile.vue'
 import PosterBatch from '~/components/PosterBatch.vue'
+import PresignedUploads from '~/components/PresignedUploads.vue'
 import AssetLibrary from '~/components/AssetLibrary.vue'
 import Webhooks from '~/components/Webhooks.vue'
 
@@ -21,6 +22,7 @@ const SECTIONS = [
   { key: 'async', label: 'Async + Status', component: AsyncStatus },
   { key: 'batch', label: 'Batch (SQS)', component: BatchCompile },
   { key: 'posters', label: 'Posters', component: PosterBatch },
+  { key: 'presign', label: 'Presigned Uploads', component: PresignedUploads },
   { key: 'assets', label: 'Asset Library', component: AssetLibrary },
   { key: 'webhooks', label: 'Webhooks', component: Webhooks }
 ] as const

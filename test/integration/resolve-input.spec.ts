@@ -7,7 +7,13 @@ import { describe, it } from "vitest";
 import assert from "node:assert";
 import { rmSync } from "node:fs";
 import { readFile } from "node:fs/promises";
-import { resolveMainTyp } from "@/adapters/lambda-layer/resolve-input.js";
+import {
+    resolveMainTyp,
+    resolveContentSource,
+    uploadKeyFor,
+    assetKeyFor,
+    MissingInputError,
+} from "@/adapters/lambda-layer/resolve-input.js";
 import type { S3Client } from "@aws-sdk/client-s3";
 
 function fakeS3(sendImpl: (command: unknown) => unknown): S3Client {
@@ -29,7 +35,7 @@ describe("resolve-input/resolveMainTyp", () => {
     it("throws when neither mainTyp nor mainTypS3 is provided", async () => {
         await assert.rejects(
             () => resolveMainTyp({}, NEVER_CALLED),
-            /mainTyp, mainTypS3, or mainTypAssetPath required/
+            /mainTyp, mainTypS3, mainTypAssetPath, or mainTypUploadRef required/
         );
     });
 
@@ -76,7 +82,7 @@ describe("resolve-input/resolveMainTyp", () => {
                     { mainTyp: b64, fonts: [{ name: "broken.otf" }] },
                     NEVER_CALLED
                 ),
-            /Asset needs bucket\+key or base64/
+            /Asset needs bucket\+key, assetPath, uploadRef, or base64/
         );
     });
 
@@ -99,7 +105,7 @@ describe("resolve-input/resolveMainTyp", () => {
         const b64 = Buffer.from("#hello").toString("base64");
         await assert.rejects(
             () => resolveMainTyp({ mainTyp: b64, data: 12345 }, NEVER_CALLED),
-            /data must be base64 string, \{ bucket, key \}, or \{ assetPath \}/
+            /data must be base64 string, \{ bucket, key \}, \{ assetPath \}, or \{ uploadRef \}/
         );
     });
 
@@ -116,5 +122,122 @@ describe("resolve-input/resolveMainTyp", () => {
         } finally {
             rmSync(result.workDir, { recursive: true, force: true });
         }
+    });
+    describe("uploadRef resolution", () => {
+        const ASSETS_BUCKET = "assets-bucket";
+
+        it("maps an uploadRef to uploads/<jobId>/<name> in the assets bucket", () => {
+            const src = resolveContentSource({ uploadRef: { jobId: "job-1", name: "bg.png" } }, ASSETS_BUCKET);
+            assert.deepStrictEqual(src, { bucket: ASSETS_BUCKET, key: "uploads/job-1/bg.png" });
+        });
+
+        it("keeps the ephemeral and library namespaces separate", () => {
+            assert.strictEqual(uploadKeyFor("job-1", "bg.png"), "uploads/job-1/bg.png");
+            assert.strictEqual(assetKeyFor("bg.png"), "assets/bg.png");
+        });
+
+        it("prefers assetPath when both are somehow present", () => {
+            const src = resolveContentSource(
+                { assetPath: "logo.png", uploadRef: { jobId: "job-1", name: "bg.png" } },
+                ASSETS_BUCKET
+            );
+            assert.strictEqual(src.key, "assets/logo.png");
+        });
+
+        it("requires an assets bucket for an uploadRef", () => {
+            assert.throws(
+                () => resolveContentSource({ uploadRef: { jobId: "job-1", name: "bg.png" } }, undefined),
+                /assets bucket/
+            );
+        });
+
+        it("resolves mainTypUploadRef by fetching the job upload from S3", async () => {
+            const requested: Array<{ Bucket?: string; Key?: string }> = [];
+            const s3 = fakeS3((command) => {
+                requested.push((command as { input: { Bucket?: string; Key?: string } }).input);
+                return s3BodyFromString("#set page(width: 100pt)\nFrom a presigned upload");
+            });
+            const result = await resolveMainTyp(
+                { mainTypUploadRef: { jobId: "job-1", name: "main.typ" } },
+                s3,
+                ASSETS_BUCKET
+            );
+            try {
+                const content = await readFile(result.mainPath, "utf-8");
+                assert(content.includes("From a presigned upload"));
+                assert.deepStrictEqual(requested, [{ Bucket: ASSETS_BUCKET, Key: "uploads/job-1/main.typ" }]);
+            } finally {
+                rmSync(result.workDir, { recursive: true, force: true });
+            }
+        });
+
+        it("resolves an asset by uploadRef to its workDir filename", async () => {
+            const b64 = Buffer.from("#hello").toString("base64");
+            const s3 = fakeS3(() => s3BodyFromString("PNGDATA"));
+            const result = await resolveMainTyp(
+                {
+                    mainTyp: b64,
+                    assets: [{ name: "background.png", uploadRef: { jobId: "job-1", name: "bg-0.png" } }],
+                },
+                s3,
+                ASSETS_BUCKET
+            );
+            try {
+                // Typst resolves the image by workDir filename, not by the S3 key.
+                const content = await readFile(`${result.workDir}/background.png`, "utf-8");
+                assert.strictEqual(content, "PNGDATA");
+            } finally {
+                rmSync(result.workDir, { recursive: true, force: true });
+            }
+        });
+
+        it("resolves data by uploadRef", async () => {
+            const b64 = Buffer.from("#hello").toString("base64");
+            const s3 = fakeS3(() => s3BodyFromString('{"from":"upload"}'));
+            const result = await resolveMainTyp(
+                {
+                    mainTyp: b64,
+                    data: { uploadRef: { jobId: "job-1", name: "rows.json" } },
+                    dataFile: "data.json",
+                },
+                s3,
+                ASSETS_BUCKET
+            );
+            try {
+                const content = await readFile(`${result.workDir}/data.json`, "utf-8");
+                assert.strictEqual(content, '{"from":"upload"}');
+            } finally {
+                rmSync(result.workDir, { recursive: true, force: true });
+            }
+        });
+
+        it("reports a missing object as MissingInputError, not a raw NoSuchKey", async () => {
+            const s3 = fakeS3(() => {
+                const err = new Error("The specified key does not exist.");
+                err.name = "NoSuchKey";
+                throw err;
+            });
+            await assert.rejects(
+                () => resolveMainTyp({ mainTypUploadRef: { jobId: "job-1", name: "main.typ" } }, s3, ASSETS_BUCKET),
+                (err: Error) => {
+                    assert(err instanceof MissingInputError);
+                    assert(err.message.includes("uploads/job-1/main.typ"), err.message);
+                    assert(err.message.includes("presigned upload"), err.message);
+                    return true;
+                }
+            );
+        });
+
+        it("does not mask a non-404 S3 failure", async () => {
+            const s3 = fakeS3(() => {
+                const err = new Error("Access Denied");
+                err.name = "AccessDenied";
+                throw err;
+            });
+            await assert.rejects(
+                () => resolveMainTyp({ mainTypUploadRef: { jobId: "job-1", name: "main.typ" } }, s3, ASSETS_BUCKET),
+                /Access Denied/
+            );
+        });
     });
 });

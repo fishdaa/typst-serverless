@@ -1,6 +1,7 @@
 /**
  * Lambda handler for Typst Serverless.
- * Actions: compile, status, retrieve, batch, uploadasset, listassets, presigndownloadasset, deleteasset
+ * Actions: compile, status, retrieve, batch, uploadasset, presignuploadasset,
+ * presignuploads, listassets, presigndownloadasset, deleteasset
  */
 import { compile } from "@/core/compile.js";
 import { createInMemoryState } from "@/core/state.js";
@@ -18,11 +19,25 @@ import {
     validateS3Ref,
 } from "@/core/validate.js";
 import { validateAssets } from "@/core/assets.js";
-import { resolveMainTyp, ASSET_PREFIX } from "@/adapters/lambda-layer/resolve-input.js";
+import {
+    validateUploadRequest,
+    validateUploadRequests,
+    validateJobId,
+    maxUploadBytes,
+} from "@/core/uploads.js";
+import {
+    resolveMainTyp,
+    resolveContentSource,
+    assetKeyFor,
+    uploadKeyFor,
+    MissingInputError,
+    ASSET_PREFIX,
+    type UploadRef,
+} from "@/adapters/lambda-layer/resolve-input.js";
 import { StepLog, pollChildRss, dirSizeMB } from "@/adapters/lambda-layer/telemetry.js";
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocumentClient, QueryCommand, UpdateCommand } from "@aws-sdk/lib-dynamodb";
-import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand, ListObjectsV2Command, CopyObjectCommand } from "@aws-sdk/client-s3";
+import { S3Client, PutObjectCommand, GetObjectCommand, HeadObjectCommand, DeleteObjectCommand, ListObjectsV2Command, CopyObjectCommand } from "@aws-sdk/client-s3";
 import { Upload } from "@aws-sdk/lib-storage";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { SQSClient, SendMessageCommand } from "@aws-sdk/client-sqs";
@@ -45,11 +60,18 @@ const dynamo = DynamoDBDocumentClient.from(
         endpoint ? { endpoint, region, credentials: { accessKeyId: "test", secretAccessKey: "test" } } : {}
     )
 );
-const s3 = new S3Client(
-    endpoint
-        ? { endpoint, region, credentials: { accessKeyId: "test", secretAccessKey: "test" }, forcePathStyle: true }
-        : {}
-);
+const s3Config = endpoint
+    ? { endpoint, region, credentials: { accessKeyId: "test", secretAccessKey: "test" }, forcePathStyle: true }
+    : {};
+const s3 = new S3Client(s3Config);
+
+// Separate client for signing upload URLs. By default the SDK adds a flexible
+// checksum header (x-amz-checksum-crc32) to PutObject and signs it in, which a
+// plain browser `fetch(url, { method: "PUT", body: blob })` cannot satisfy — S3
+// then rejects the upload. "WHEN_REQUIRED" keeps checksums on our own server-side
+// uploads (which use the client above) while leaving presigned PUTs signable by
+// a client that only sends Content-Type and Content-Length.
+const s3Presigner = new S3Client({ ...s3Config, requestChecksumCalculation: "WHEN_REQUIRED" });
 
 type DynamoBatchItem = {
     document_id: string;
@@ -133,6 +155,8 @@ interface LambdaEvent {
   mainTyp?: string;
   mainTypS3?: { bucket: string; key: string };
   mainTypAssetPath?: string;
+  /** Reference to an ephemeral presigned upload: { jobId, name }. */
+  mainTypUploadRef?: UploadRef;
   main?: string;
   /** Cache-asset upload/list/delete fields (uploadasset/deleteasset actions) */
   assetPath?: string;
@@ -140,14 +164,18 @@ interface LambdaEvent {
   bucket?: string;
   key?: string;
   contentType?: string;
+  /** Presign fields: exact byte length and list form (presignuploadasset/presignuploads). */
+  sizeBytes?: number;
+  assets?: unknown[];
+  files?: unknown[];
+  jobId?: string;
   /** Optional extra .typ sources for #include / modules: { name, base64? } or { name, bucket, key } */
-  extraTyps?: Array<{ name: string; base64?: string; bucket?: string; key?: string }>;
+  extraTyps?: Array<{ name: string; base64?: string; bucket?: string; key?: string; assetPath?: string; uploadRef?: UploadRef }>;
   documentId?: string;
   batchId?: string;
-  data?: string | { bucket: string; key: string };
+  data?: string | { bucket: string; key: string } | { assetPath: string } | { uploadRef: UploadRef };
   dataFile?: string;
   fonts?: unknown[];
-  assets?: unknown[];
   outputS3?: { bucket: string; keyPrefix?: string };
   outputKey?: string;
   webhook?: { url: string };
@@ -188,6 +216,7 @@ export async function handler(event: LambdaEvent, _context?: unknown): Promise<{
         if (action === "batchstatus") return await handleBatchStatus(String(event.documentId || event.batchId || ""));
         if (action === "uploadasset") return await handleUploadAsset(event);
         if (action === "presignuploadasset") return await handlePresignUploadAsset(event);
+        if (action === "presignuploads") return await handlePresignUploads(event);
         if (action === "presigndownloadasset") return await handlePresignDownloadAsset(event);
         if (action === "listassets") return await handleListAssets(event);
         if (action === "deleteasset") return await handleDeleteAsset(event);
@@ -254,6 +283,10 @@ async function handleCompile(event: LambdaEvent) {
         });
         await state.update(documentId, { status: "compiling" });
         log.emit("state-compiling");
+
+        // Fail fast (and with an actionable message) when a presigned upload the
+        // event references never landed, instead of dying inside resolution.
+        await verifyAssetsBucketRefs(event);
 
         const { workDir: wd, mainPath } = await resolveMainTyp(event, s3, ASSETS_BUCKET);
         workDir = wd;
@@ -369,7 +402,10 @@ async function handleCompile(event: LambdaEvent) {
         if (event.webhook?.url) {
             invokeWebhook(event.webhook.url, { documentId, status: "failed", error: (err as Error).message });
         }
-        return lambdaResponse(500, {
+        // A missing input is the caller's mistake (upload never completed, or the
+        // ephemeral upload already expired), not a server fault.
+        const statusCode = err instanceof MissingInputError ? 400 : 500;
+        return lambdaResponse(statusCode, {
             error: (err as Error).message,
             documentId,
             status: "failed",
@@ -460,6 +496,21 @@ async function handleBatchEnqueue(event: LambdaEvent) {
     const storeToS3 = !!(event.storeToS3 && (OUTPUT_BUCKET || outputS3?.bucket));
     if (!storeToS3) {
         return lambdaResponse(400, { error: "Batch requires S3 storage (storeToS3: true)" });
+    }
+
+    // Verify every document's presigned inputs before enqueueing any of them, so
+    // a missing upload is a 400 on the enqueue call rather than N failures
+    // discovered later through status polling.
+    try {
+        // Batches typically share inputs (one background per poster, one logo for
+        // all of them), so verify the union of keys rather than per document.
+        const keys = (event.documents || []).flatMap((doc) => collectAssetsBucketKeys(doc as LambdaEvent));
+        await verifyKeys([...new Set(keys)]);
+    } catch (err) {
+        if (err instanceof MissingInputError) {
+            return lambdaResponse(400, { error: err.message });
+        }
+        throw err;
     }
 
     const batchId = randomUUID();
@@ -593,10 +644,6 @@ async function handleSqs(event: LambdaEvent) {
     return lambdaResponse(200, { processed: records.length });
 }
 
-function assetKeyFor(assetPath: string): string {
-    return `${ASSET_PREFIX}${assetPath}`;
-}
-
 /**
  * Upload (or register) a reusable asset, cached in S3 under a stable path.
  * Provide either `base64` (uploads fresh bytes) or `bucket`+`key` (registers an
@@ -651,28 +698,183 @@ async function handleUploadAsset(event: LambdaEvent) {
 }
 
 /**
- * Presign a direct-to-S3 PUT URL for a cached asset, so large files (e.g.
- * print-resolution poster backgrounds) can bypass the API Gateway/Lambda
- * payload limit entirely instead of being base64-embedded in the request body.
+ * Keys in the assets bucket that a compile event references indirectly, via
+ * assetPath or uploadRef. Direct bucket+key refs are excluded: they may live in
+ * a customer bucket where a HEAD is not necessarily permitted.
+ */
+function collectAssetsBucketKeys(event: LambdaEvent): string[] {
+    if (!ASSETS_BUCKET) return [];
+    const keys: string[] = [];
+    const push = (ref: { assetPath?: string; uploadRef?: UploadRef }) => {
+        if (!ref.assetPath && !ref.uploadRef) return;
+        const src = resolveContentSource(ref, ASSETS_BUCKET);
+        if (src.key) keys.push(src.key);
+    };
+
+    push({
+        assetPath: event.mainTypAssetPath,
+        uploadRef: event.mainTypUploadRef,
+    });
+    for (const group of [event.assets, event.fonts, event.extraTyps]) {
+        for (const item of (group as Array<{ assetPath?: string; uploadRef?: UploadRef }> | undefined) || []) {
+            if (item && typeof item === "object") push(item);
+        }
+    }
+    if (event.data && typeof event.data === "object") {
+        push(event.data as { assetPath?: string; uploadRef?: UploadRef });
+    }
+    return [...new Set(keys)];
+}
+
+/**
+ * HEAD every indirectly-referenced input before compiling. Without this, a
+ * presigned upload that never completed surfaces as a raw NoSuchKey deep inside
+ * input resolution — a 500 for the sync caller, and for a batch, a per-document
+ * failure discovered minutes later via status polling.
+ */
+async function verifyAssetsBucketRefs(event: LambdaEvent): Promise<void> {
+    return verifyKeys(collectAssetsBucketKeys(event));
+}
+
+/** HEAD the given assets-bucket keys, throwing MissingInputError listing any absent. */
+async function verifyKeys(keys: string[]): Promise<void> {
+    if (keys.length === 0 || !ASSETS_BUCKET) return;
+    const bucket = ASSETS_BUCKET;
+    const results = await Promise.all(
+        keys.map(async (key) => {
+            try {
+                await s3.send(new HeadObjectCommand({ Bucket: bucket, Key: key }));
+                return null;
+            } catch (err) {
+                const e = err as { name?: string; $metadata?: { httpStatusCode?: number } };
+                if (e?.name === "NotFound" || e?.name === "NoSuchKey" || e?.$metadata?.httpStatusCode === 404) {
+                    return key;
+                }
+                throw err;
+            }
+        })
+    );
+    const missing = results.filter((k): k is string => k !== null);
+    if (missing.length > 0) throw new MissingInputError(bucket, missing);
+}
+
+interface PresignedUpload {
+    uploadUrl: string;
+    contentType: string;
+    sizeBytes: number;
+    /** Headers the client must send on the PUT; both are signed into the URL. */
+    headers: Record<string, string>;
+}
+
+/**
+ * Sign one direct-to-S3 PUT. Content type and exact byte length are signed in,
+ * so a leaked URL can only write that content type at that exact size — S3
+ * rejects anything else. Clients must echo both back as request headers.
+ */
+async function presignPut(bucket: string, key: string, contentType: string, sizeBytes: number): Promise<PresignedUpload> {
+    const uploadUrl = await getSignedUrl(
+        s3Presigner,
+        new PutObjectCommand({
+            Bucket: bucket,
+            Key: key,
+            ContentType: contentType,
+            ContentLength: sizeBytes,
+        }),
+        { expiresIn: PRESIGNED_EXPIRY }
+    );
+    return {
+        uploadUrl,
+        contentType,
+        sizeBytes,
+        headers: { "Content-Type": contentType, "Content-Length": String(sizeBytes) },
+    };
+}
+
+function presignExpiresAt(): string {
+    return new Date(Date.now() + PRESIGNED_EXPIRY * 1000).toISOString();
+}
+
+/**
+ * Presign direct-to-S3 PUT URLs for the persistent asset library, so large
+ * files (e.g. print-resolution poster backgrounds) bypass the API
+ * Gateway/Lambda payload limit instead of being base64-embedded in the body.
+ *
+ * Single form: `{ assetPath, contentType, sizeBytes }`.
+ * Batch form:  `{ assets: [{ assetPath, contentType, sizeBytes }, ...] }`.
+ *
+ * Objects written here never expire — use `presignuploads` for one-off job
+ * inputs that should not accumulate in the library.
  */
 async function handlePresignUploadAsset(event: LambdaEvent) {
-    const pathCheck = validateAssetPath(event.assetPath);
-    if (!pathCheck.valid) return lambdaResponse(400, { error: pathCheck.error });
+    const batch = Array.isArray(event.assets) ? event.assets : null;
+
+    if (batch) {
+        const check = validateUploadRequests(batch, "assetPath");
+        if (!check.valid) return lambdaResponse(400, { error: check.error });
+        if (!ASSETS_BUCKET) {
+            return lambdaResponse(503, { error: "Assets bucket not configured (TYPST_ASSETS_BUCKET or TYPST_INPUT_BUCKET)" });
+        }
+        const bucket = ASSETS_BUCKET;
+        const uploads = await Promise.all(
+            (check.items || []).map(async (item) => ({
+                assetPath: item.path,
+                ...(await presignPut(bucket, assetKeyFor(item.path), item.contentType, item.sizeBytes)),
+            }))
+        );
+        return lambdaResponse(200, { uploads, expiresAt: presignExpiresAt() });
+    }
+
+    const check = validateUploadRequest(
+        { path: event.assetPath, contentType: event.contentType, sizeBytes: event.sizeBytes },
+        "assetPath"
+    );
+    if (!check.valid) return lambdaResponse(400, { error: check.error });
     if (!ASSETS_BUCKET) {
         return lambdaResponse(503, { error: "Assets bucket not configured (TYPST_ASSETS_BUCKET or TYPST_INPUT_BUCKET)" });
     }
     const assetPath = event.assetPath as string;
-    const contentType = typeof event.contentType === "string" ? event.contentType : undefined;
-    const uploadUrl = await getSignedUrl(
-        s3,
-        new PutObjectCommand({
-            Bucket: ASSETS_BUCKET,
-            Key: assetKeyFor(assetPath),
-            ...(contentType && { ContentType: contentType }),
-        }),
-        { expiresIn: PRESIGNED_EXPIRY }
+    const presigned = await presignPut(
+        ASSETS_BUCKET,
+        assetKeyFor(assetPath),
+        event.contentType as string,
+        Number(event.sizeBytes)
     );
-    return lambdaResponse(200, { assetPath, uploadUrl, contentType });
+    return lambdaResponse(200, { assetPath, ...presigned, expiresAt: presignExpiresAt() });
+}
+
+/**
+ * Presign direct-to-S3 PUT URLs for ephemeral, job-scoped compile inputs under
+ * uploads/<jobId>/. Same mechanism as the asset library, different lifecycle:
+ * these keys are expired by an S3 lifecycle rule, so one-off inputs (a poster
+ * background, a generated data file) do not pollute the curated library.
+ *
+ * Request:  `{ jobId?, files: [{ name, contentType, sizeBytes }, ...] }`
+ * Response: `{ jobId, uploads: [{ name, uploadUrl, headers, ... }], expiresAt }`
+ *
+ * Pass the returned `jobId` to /compile or /batch as `{ uploadRef: { jobId, name } }`
+ * on any input — the async path resolves it identically to the sync path.
+ */
+async function handlePresignUploads(event: LambdaEvent) {
+    if (event.jobId !== undefined) {
+        const jobCheck = validateJobId(event.jobId);
+        if (!jobCheck.valid) return lambdaResponse(400, { error: jobCheck.error });
+    }
+    const check = validateUploadRequests(event.files, "name");
+    if (!check.valid) return lambdaResponse(400, { error: check.error });
+    if (!ASSETS_BUCKET) {
+        return lambdaResponse(503, { error: "Assets bucket not configured (TYPST_ASSETS_BUCKET or TYPST_INPUT_BUCKET)" });
+    }
+    const bucket = ASSETS_BUCKET;
+    const jobId = (event.jobId as string) || randomUUID();
+
+    const uploads = await Promise.all(
+        (check.items || []).map(async (item) => ({
+            name: item.path,
+            uploadRef: { jobId, name: item.path },
+            ...(await presignPut(bucket, uploadKeyFor(jobId, item.path), item.contentType, item.sizeBytes)),
+        }))
+    );
+    return lambdaResponse(200, { jobId, uploads, expiresAt: presignExpiresAt(), maxUploadBytes: maxUploadBytes() });
 }
 
 /** Presign a private cached asset for browser download. */

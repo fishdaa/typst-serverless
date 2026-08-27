@@ -17,3 +17,7 @@ npx vitest run test/integration/localstack.spec.ts
 unset TYPST_USE_IN_MEMORY_STATE
 export TYPST_STATE_TABLE=typst-documents
 npx vitest run test/integration/localstack.spec.ts
+
+# Presigned uploads on the async path (S3 + SQS + DynamoDB): presign → direct
+# PUT → /batch enqueue → SQS worker compile → batch status.
+npx vitest run test/integration/presign-async.spec.ts

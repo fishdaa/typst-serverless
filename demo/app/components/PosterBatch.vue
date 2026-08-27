@@ -5,7 +5,7 @@ import { formatBytes } from '~/utils/format'
 import { generatePosterBackground, generatePosterBackgroundSvg } from '~/utils/poster-background'
 import type { AssetRef } from '~/composables/useApi'
 
-const { compile, compileBatch, getStatus, uploadAssetDirect } = useApi()
+const { compile, compileBatch, getStatus, uploadJobFiles } = useApi()
 
 const sizeKey = ref(POSTER_SIZES[0].key)
 const size = computed(() => POSTER_SIZES.find((s) => s.key === sizeKey.value)!)
@@ -43,18 +43,37 @@ async function loadLogo(): Promise<AssetRef> {
 /**
  * The default 2 x 5 ft poster uses an exact-size PNG. Larger posters use a
  * resolution-independent SVG so the browser never allocates their print-sized
- * raster. Both assets are uploaded directly to S3 via a presigned URL.
+ * raster.
  */
-async function uploadBackground(accent: string): Promise<AssetRef> {
+async function renderBackground(accent: string): Promise<Blob> {
   const useSvg = size.value.key !== '2x5'
-  const blob = useSvg
+  return useSvg
     ? generatePosterBackgroundSvg(pixelDims.value.w, pixelDims.value.h, accent)
     : await generatePosterBackground(pixelDims.value.w, pixelDims.value.h, accent)
-  const extension = useSvg ? 'svg' : 'png'
-  const contentType = useSvg ? 'image/svg+xml' : 'image/png'
-  const assetPath = `demo/poster-bg-${crypto.randomUUID()}.${extension}`
-  await uploadAssetDirect({ assetPath, blob, contentType })
-  return { name: `background.${extension}`, assetPath }
+}
+
+/**
+ * Uploads every poster background directly to S3 through one presign call, as
+ * ephemeral job inputs — these keys are lifecycle-expired, so demo runs don't
+ * accumulate in the asset library. Returns one AssetRef per accent, in order.
+ */
+async function uploadBackgrounds(accents: string[]): Promise<AssetRef[]> {
+  const extension = backgroundExtension.value
+  const contentType = extension === 'svg' ? 'image/svg+xml' : 'image/png'
+  const files = await Promise.all(
+    accents.map(async (accent, i) => ({
+      name: `bg-${i}.${extension}`,
+      blob: await renderBackground(accent),
+      contentType
+    }))
+  )
+  const { refs } = await uploadJobFiles(files)
+  return files.map((file) => {
+    const uploadRef = refs[file.name]
+    if (!uploadRef) throw new Error(`Upload for ${file.name} was not presigned`)
+    // Typst resolves the image by its workDir filename, not by the S3 key.
+    return { name: `background.${extension}`, uploadRef }
+  })
 }
 
 // --- Single poster ---
@@ -75,7 +94,8 @@ async function runSingle() {
   const started = performance.now()
   try {
     const logo = await loadLogo()
-    const background = await uploadBackground(single.value.accent)
+    const [background] = await uploadBackgrounds([single.value.accent])
+    if (!background) throw new Error('Background upload failed')
     const result = await compile({
       mainTyp: textToBase64(posterTyp(size.value, single.value, backgroundExtension.value)),
       outputFormat: 'png',
@@ -120,15 +140,18 @@ async function runBatch() {
   stopPolling()
   try {
     const logo = await loadLogo()
-    const docs = await Promise.all(rows.value.map(async (data) => ({
+    // One presign call for the whole batch, then bounded-concurrency PUTs —
+    // not one API round trip per poster.
+    const backgrounds = await uploadBackgrounds(rows.value.map((data) => data.accent))
+    const docs = rows.value.map((data, i) => ({
       mainTyp: textToBase64(posterTyp(size.value, data, backgroundExtension.value)),
       outputFormat: 'png' as const,
       ppi: ppi.value,
       maxMemory: MAX_MEMORY_MB,
       pngCompression: pngCompression.value,
-      assets: [logo, await uploadBackground(data.accent)],
+      assets: [logo, backgrounds[i] as AssetRef],
       storeToS3: true
-    })))
+    }))
     const enqueued = await compileBatch(docs, { storeToS3: true })
     batchId.value = enqueued.batchId
     if (!Array.isArray(enqueued.documentIds)) {
@@ -156,7 +179,10 @@ async function runBatch() {
       Renders at true physical size (e.g. 24in x 60in) with a full-bleed
       background image generated in-browser with the poster's exact aspect ratio,
       then scaled and exported by Typst at print resolution — a multi-megapixel
-      raster workload.
+      raster workload. Backgrounds are far too large for the request body, so the
+      whole batch is presigned in one <code>POST /uploads</code> call and uploaded
+      directly to S3 as ephemeral job inputs; each compile carries only an
+      <code>uploadRef</code>.
     </p>
     <div class="row" style="margin-bottom: 14px">
       <div>

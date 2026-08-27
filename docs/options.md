@@ -37,6 +37,7 @@ All possible combinations of deployment, invocation, storage, and features. Use 
 | **API Gateway** | Yes, No | Yes = REST. No = SDK only. |
 | **DynamoDB** | Yes, No | Yes = persist state (document_id, status, s3_key); enables status, retrieve, async polling. No = sync inline only; no status/retrieve. |
 | **S3 storage** | Yes, No | Yes = store output in S3; return presigned URL. No = return PDF inline (multipart) or status only. |
+| **Input delivery** | Inline, Presigned | Inline = base64/multipart in the request body (capped at 10MB REST / 6MB sync / 256KB async). Presigned = client `PUT`s straight to S3, then the request carries only an `assetPath`/`uploadRef`. Optional for sync; required for large async inputs. |
 | **SQS** | Yes, No (Phase 5) | Yes = optional queue for batch + backpressure. No = direct Lambda invoke. |
 | **Batch** | Yes, No | Compile multiple documents. |
 
@@ -48,6 +49,7 @@ All possible combinations of deployment, invocation, storage, and features. Use 
 | **DynamoDB required for batch** | Batch tracks each document; DynamoDB (with `batch_id`) stores state. |
 | **DynamoDB optional for sync inline** | Sync single compile with PDF in response: no status/retrieve needed; Lambda-only stack possible. |
 | **Batch requires SQS + S3** | Batch is only available when SQS is enabled AND S3 storage is enabled. |
+| **Large async inputs require presigning** | The async payload limit is 256KB, so anything bigger must be uploaded directly to S3 and referenced by `assetPath` or `uploadRef`. |
 | **Batch disabled for sync** | Sync path (direct Lambda invoke) does not support batch. |
 | **Batch disabled without S3** | User must not opt out of S3; batch needs S3 for output storage. |
 | **Async without batch** | Works with or without SQS. Single compiles use Lambda async invoke. |

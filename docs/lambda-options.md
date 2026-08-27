@@ -23,7 +23,7 @@ Compile a single document.
 |--------|-------------|--------------|
 | POST | `/compile` | `compile` (default) |
 
-**Required:** `mainTyp` or `mainTypS3` (mutually exclusive).
+**Required:** exactly one of `mainTyp`, `mainTypS3`, `mainTypAssetPath`, or `mainTypUploadRef`.
 
 Via the **Lambda SDK**, these fields (and all optional params below) go at the **top level** of the payload — there is no `documents` wrapper for a direct `compile` invoke; that wrapper is REST-only (see below) or used by the separate `batch` action.
 
@@ -43,9 +43,11 @@ Via the **REST API**, `POST /compile` always takes a top-level `documents` array
 | `pdfStandard` | string | — | PDF variant: `a-2b`, `a-3b`, `1.4`, `1.5`, etc. |
 | `fonts` | array | — | `[{ name, base64 }]` or `[{ name, bucket, key }]` (OTF, TTF, TTC) |
 | `assets` | array | — | `[{ name, base64 }]` or `[{ name, bucket, key }]` (PNG, JPEG, GIF, WebP, SVG) |
-| `data` | string or object | — | Base64-encoded content or `{ bucket, key }` — S3 reference; written to workDir |
+| `data` | string or object | — | Base64-encoded content, `{ bucket, key }`, `{ assetPath }`, or `{ uploadRef }`; written to workDir |
 | `dataFile` | string | `data.json` | Filename in workDir. Allowed: .json, .yaml, .yml, .toml, .csv, .xml, .cbor. Template uses matching Typst function. |
 | `webhook` | object | — | `{ url: "https://..." }` — POST on completion/failure (HTTPS only) |
+
+**Referencing uploaded inputs:** anywhere `{ bucket, key }` is accepted — `fonts[]`, `assets[]`, `extraTyps[]`, `data` — you may instead pass `{ assetPath }` for a persistent library asset or `{ uploadRef: { jobId, name } }` for an ephemeral job upload (`mainTypAssetPath` / `mainTypUploadRef` for the main source). Both are populated by presigned direct-to-S3 uploads; see [presignuploadasset](#presignuploadasset) and [presignuploads](#presignuploads). Every such reference is `HEAD`-checked before compiling, so a missing object is a `400` naming the absent keys rather than a `500` from deep inside input resolution.
 
 **S3 output:** When using a custom `outputKey` (or the default key from `documentId`), uploading again with the same key follows normal S3 behavior: the new object overwrites the existing one at that key.
 
@@ -102,7 +104,9 @@ Job status for document or batch. Returns status and presigned link when complet
 
 **Required:** `documents` (array, 1+ items, same per-document fields as `compile`)
 
-**Response:** `{ batchId, documentIds }` (200); `503` if the batch queue isn't configured; `400` if `storeToS3` isn't set.
+**Response:** `{ batchId, documentIds }` (200); `503` if the batch queue isn't configured; `400` if `storeToS3` isn't set, or if any document references an `assetPath`/`uploadRef` that is not present in S3 — that check runs before anything is enqueued, so a bad reference fails the whole call instead of surfacing later as per-document failures.
+
+Because the async payload limit is **256KB**, large inputs must be presigned and uploaded directly to S3, then referenced by `assetPath` or `uploadRef`.
 
 ---
 
@@ -117,6 +121,54 @@ Status for a batch enqueued via `batch`.
 **Required:** `documentId` or `batchId`
 
 **Response:** `{ batchId, results: [{ documentId, status, s3Url?, error? }, ...] }`
+
+---
+
+### presignuploadasset
+
+Presign direct-to-S3 `PUT` URL(s) for the **persistent** asset library (`assets/<assetPath>`). Bypasses the request-body limits entirely — the client uploads straight to S3.
+
+| Method | Path (REST) | SDK `action` |
+|--------|-------------|--------------|
+| POST | `/assets/presign` | `presignuploadasset` |
+
+**Required (single):** `assetPath`, `contentType`, `sizeBytes`
+**Required (batch):** `assets: [{ assetPath, contentType, sizeBytes }, ...]` — up to 100 per call
+
+> **Changed:** earlier versions signed a URL from `{ assetPath }` alone, with `contentType` optional and no size or extension check — an unbounded write of arbitrary content into the bucket for the URL's lifetime. Callers sending only `assetPath` now get a `400`; add `contentType` and `sizeBytes` and echo the returned `headers` on the `PUT`. Response fields are unchanged apart from additions. Presigning itself remains optional — `uploadasset` (base64 or `bucket`+`key`), inline `mainTyp`, and `{ bucket, key }` refs are untouched.
+
+`contentType` and `sizeBytes` are signed into the URL, so a leaked URL can only write that content type at that exact byte length. `sizeBytes` must not exceed `TYPST_MAX_UPLOAD_BYTES` (default 256MB). `assetPath` must end in an extension the compiler can consume: `.typ`, a data file (`.json`, `.yaml`, `.yml`, `.toml`, `.csv`, `.xml`, `.cbor`), an image (PNG, JPEG, GIF, WebP, SVG), or a font (OTF, TTF, TTC).
+
+**Response:** `{ assetPath, uploadUrl, contentType, sizeBytes, headers, expiresAt }`, or `{ uploads: [...], expiresAt }` for the batch form. `PUT` the bytes to `uploadUrl` with the returned `headers` echoed verbatim — they are part of the signature. `503` if no assets bucket is configured.
+
+---
+
+### presignuploads
+
+Same mechanism as `presignuploadasset`, but for **ephemeral** job inputs under `uploads/<jobId>/<name>`. These keys are expired by an S3 lifecycle rule (`uploadRetentionDays`, default 1 day), so one-off inputs do not accumulate in the curated asset library.
+
+| Method | Path (REST) | SDK `action` |
+|--------|-------------|--------------|
+| POST | `/uploads` | `presignuploads` |
+
+**Required:** `files: [{ name, contentType, sizeBytes }, ...]` — up to 100 per call
+**Optional:** `jobId` — reuse an existing job namespace instead of minting one
+
+**Response:** `{ jobId, uploads: [{ name, uploadRef, uploadUrl, contentType, sizeBytes, headers }], expiresAt, maxUploadBytes }`. Pass each `uploadRef` to `compile` or `batch` — identically on both paths.
+
+---
+
+### presigndownloadasset
+
+Presign a `GET` URL so a browser can download a private cached asset.
+
+| Method | Path (REST) | SDK `action` |
+|--------|-------------|--------------|
+| GET | `/assets/download/{path}` | `presigndownloadasset` |
+
+**Required:** `assetPath`
+
+**Response:** `{ assetPath, downloadUrl }`
 
 ---
 
@@ -136,6 +188,9 @@ Status for a batch enqueued via `batch`.
 | document_id | 1–128 chars; alphanumeric, `-`, `_` |
 | S3 key | No `..`, no leading `/`, ASCII only |
 | Asset formats | Images: PNG, JPEG, GIF, WebP, SVG. Fonts: OTF, TTF, TTC |
+| Presigned upload size | `TYPST_MAX_UPLOAD_BYTES`, default 256MB per object |
+| Presigned uploads per call | 100 |
+| Presigned URL lifetime | `TYPST_PRESIGNED_EXPIRY`, default 3600s |
 
 ---
 
@@ -145,6 +200,8 @@ Status for a batch enqueued via `batch`.
 |--------|------|--------|
 | POST | `/compile` | compile (single or batch via documents array) |
 | GET | `/status/{id}` | status (document or batch; includes s3Url when completed) |
+| POST | `/assets/presign` | presignuploadasset (persistent library) |
+| POST | `/uploads` | presignuploads (ephemeral, job-scoped) |
 
 ---
 
@@ -157,3 +214,6 @@ Status for a batch enqueued via `batch`.
 | `retrieve` | documentId | — |
 | `batch` | documents (array, 1+ items) | — (each item: same optional params as `compile`) |
 | `batchstatus` | documentId or batchId | — |
+| `presignuploadasset` | assetPath + contentType + sizeBytes, **or** assets[] | — |
+| `presignuploads` | files[] (name + contentType + sizeBytes each) | jobId |
+| `presigndownloadasset` | assetPath | — |
