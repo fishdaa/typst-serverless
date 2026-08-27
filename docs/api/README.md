@@ -11,6 +11,8 @@ HTTP endpoints for Typst compilation via API Gateway. Deploy with `enableApiGate
 | POST | `/compile` | Compile .typ source to PDF, SVG, or PNG (single or batch via `documents` array) |
 | GET | `/status/{id}` | Get document or batch status; includes presigned `s3Url` when completed |
 | POST | `/assets` | Upload (or register) a reusable asset, cached in S3 under a stable path |
+| POST | `/assets/presign` | Presign direct-to-S3 upload URL(s) for the persistent asset library |
+| POST | `/uploads` | Presign direct-to-S3 upload URL(s) for ephemeral, job-scoped compile inputs |
 | GET | `/assets` | List cached assets, optionally filtered by `?prefix=` |
 | DELETE | `/assets/{path}` | Delete a cached asset |
 
@@ -43,9 +45,9 @@ Body must include a `documents` array (one or more items):
 }
 ```
 
-**Per-document optional fields:** `main`, `extraTyps`, `fonts`, `assets`, `mainTypS3`, `mainTypAssetPath`, `outputS3`, `outputKey`, `outputFormat` (`pdf`|`svg`|`png`), `pdfStandard`, `webhook`, `data`, `dataFile`. See [api-gateway-options.md](../api-gateway-options.md) for full param reference.
+**Per-document optional fields:** `main`, `extraTyps`, `fonts`, `assets`, `mainTypS3`, `mainTypAssetPath`, `mainTypUploadRef`, `outputS3`, `outputKey`, `outputFormat` (`pdf`|`svg`|`png`), `pdfStandard`, `webhook`, `data`, `dataFile`. See [api-gateway-options.md](../api-gateway-options.md) for full param reference.
 
-Any `mainTypS3`, `fonts[]`/`assets[]`/`extraTyps[]` item, or `data` field that accepts `{ bucket, key }` also accepts `{ assetPath }` (or `mainTypAssetPath` for the main source) to reference a previously uploaded [cached asset](#post-assets) instead of a fresh S3 location — see below.
+Any `mainTypS3`, `fonts[]`/`assets[]`/`extraTyps[]` item, or `data` field that accepts `{ bucket, key }` also accepts `{ assetPath }` (or `mainTypAssetPath` for the main source) to reference a previously uploaded [cached asset](#post-assets), or `{ uploadRef: { jobId, name } }` (or `mainTypUploadRef`) to reference an [ephemeral presigned upload](#large-inputs-presigned-direct-to-s3-uploads) — see below.
 
 ### Multipart form-data (single document)
 
@@ -99,6 +101,96 @@ Multipart form fields: file part `file`/`asset`; form fields `assetPath` (defaul
 **Response (200):** `{ assetPath }`.
 
 **Requires** an assets bucket configured (`TYPST_ASSETS_BUCKET`, falling back to `TYPST_INPUT_BUCKET`); 503 if unset.
+
+## Large inputs: presigned direct-to-S3 uploads
+
+Presigning is **optional** — one of several ways to get bytes in. Pick by size and reuse:
+
+| Input path | Send bytes as | Good for | Ceiling |
+|------------|---------------|----------|---------|
+| Inline `mainTyp` / `assets[].base64` | base64 in the request body | small sources, a logo | ~7MB of raw bytes before the 10MB body limit |
+| `multipart/form-data` on `/compile` | raw file parts | avoiding base64 on the client | same 10MB body limit |
+| `POST /assets` (base64 or `bucket`+`key`) | base64, or register an existing S3 object | building the reusable library | same 10MB body limit |
+| `{ bucket, key }` refs | nothing — object already in S3 | objects your own pipeline wrote | none |
+| **`POST /assets/presign` / `POST /uploads`** | client `PUT`s straight to S3 | anything large, and **all** large async inputs | `TYPST_MAX_UPLOAD_BYTES` (default 256MB) |
+
+Request bodies are capped: **10MB** at API Gateway, **6MB** for a direct sync Lambda invoke, and **256KB** for an async one. Base64 inflates bytes by ~33%, so anything past a few MB — a print-resolution poster background, a large font, a big data file — must go straight to S3 instead of through the request body. Presign an upload URL, `PUT` the bytes to S3 from the client, then reference the object by path in `/compile` or `/batch`.
+
+Two namespaces, same mechanism, different lifetime:
+
+| Endpoint | Key | Lifetime | Use for |
+|----------|-----|----------|---------|
+| `POST /assets/presign` | `assets/<assetPath>` | Permanent | Reusable library assets — brand logos, fonts, templates |
+| `POST /uploads` | `uploads/<jobId>/<name>` | Expired by an S3 lifecycle rule (`uploadRetentionDays`, default 1 day) | One-off inputs for a single job |
+
+Both work identically for **sync** (`/compile`) and **async** (`/batch`) compiles. For async, presigning is not just an optimization — the 256KB async payload limit makes it the only way to pass a large input.
+
+### POST /assets/presign
+
+```json
+{ "assetPath": "brand/logo.png", "contentType": "image/png", "sizeBytes": 184320 }
+```
+
+Batch form — sign up to 100 uploads in one call:
+
+```json
+{ "assets": [
+  { "assetPath": "brand/logo.png", "contentType": "image/png", "sizeBytes": 184320 },
+  { "assetPath": "brand/bg.svg", "contentType": "image/svg+xml", "sizeBytes": 9210 }
+] }
+```
+
+`contentType` and `sizeBytes` are **required**: both are signed into the URL, so a leaked URL can only write that content type at that exact byte length. `sizeBytes` must not exceed `TYPST_MAX_UPLOAD_BYTES` (default 256MB). `assetPath` must end in an extension the compiler can consume (`.typ`, data files, images, fonts) — note that `POST /assets`, which writes through the Lambda rather than handing out a URL, does not enforce that allowlist.
+
+> **Changed:** earlier versions signed a URL from `{ assetPath }` alone, with `contentType` optional and no size or extension check. Such a URL was an unbounded write of arbitrary content into the bucket for its whole lifetime. A caller that sends only `assetPath` now gets a `400`. To migrate, add the two fields — a browser has both on the `Blob` (`blob.size`, `blob.type`) — and echo the returned `headers` on the `PUT`. Response fields are unchanged apart from additions.
+
+**Response (200):** `{ assetPath, uploadUrl, contentType, sizeBytes, headers, expiresAt }` — or `{ uploads: [...], expiresAt }` for the batch form.
+
+### POST /uploads
+
+```json
+{
+  "files": [
+    { "name": "main.typ", "contentType": "text/plain", "sizeBytes": 812 },
+    { "name": "bg-0.png", "contentType": "image/png", "sizeBytes": 48211900 }
+  ]
+}
+```
+
+Optional `jobId` reuses an existing job namespace; otherwise one is minted.
+
+**Response (200):** `{ jobId, uploads: [ { name, uploadRef, uploadUrl, contentType, sizeBytes, headers } ], expiresAt, maxUploadBytes }`.
+
+### Uploading
+
+`PUT` the bytes to `uploadUrl`, echoing back the `headers` from the response verbatim — they are part of the signature:
+
+```js
+await fetch(upload.uploadUrl, { method: "PUT", headers: upload.headers, body: blob })
+```
+
+### Referencing the upload
+
+Library assets use `assetPath` (see [below](#referencing-a-cached-asset-in-compile)). Job uploads use `uploadRef`, accepted anywhere `assetPath` is — plus `mainTypUploadRef` for the main source:
+
+```json
+{
+  "documents": [
+    {
+      "mainTypUploadRef": { "jobId": "3f1b…", "name": "main.typ" },
+      "assets": [{ "name": "background.png", "uploadRef": { "jobId": "3f1b…", "name": "bg-0.png" } }],
+      "data": { "uploadRef": { "jobId": "3f1b…", "name": "rows.json" } },
+      "storeToS3": true
+    }
+  ]
+}
+```
+
+Every referenced object is `HEAD`-checked before compiling, so an upload that never completed returns **400** naming the missing keys — on `/batch` that check runs at enqueue time, before any message reaches the queue.
+
+**CORS:** the assets bucket allows `PUT`/`HEAD`/`GET` from the origins in the `uploadAllowedOrigins` stack config (default `*` — narrow it in production) and exposes `ETag`.
+
+**Live example:** the **Presigned Uploads** tab of the [demo app](../../demo/) runs both flows end to end in the browser, including the missing-upload `400`.
 
 ## GET /assets
 

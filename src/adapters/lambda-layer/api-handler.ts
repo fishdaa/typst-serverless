@@ -2,7 +2,8 @@
  * API Gateway HTTP API v2 adapter.
  * Transforms REST requests to Lambda events and returns HTTP responses.
  * Supports JSON and multipart/form-data for POST /compile, plus explicit
- * asynchronous batch enqueue via POST /batch.
+ * asynchronous batch enqueue via POST /batch and presigned direct-to-S3 uploads
+ * via POST /assets/presign (persistent library) and POST /uploads (job-scoped).
  */
 import { handler as lambdaHandler } from "./handler.js";
 import { validateRestPayloadSize, validateDocumentId } from "@/core/validate.js";
@@ -98,7 +99,10 @@ export async function handler(event: Record<string, unknown>): Promise<{
         return statusRes;
     }
     if (method === "POST" && path === "/assets/presign") {
-        return await handlePresignUploadAsset(bodyStr);
+        return await forwardJson(bodyStr, "presignuploadasset");
+    }
+    if (method === "POST" && path === "/uploads") {
+        return await forwardJson(bodyStr, "presignuploads");
     }
     if (method === "POST" && path === "/assets") {
         return await handleUploadAsset(bodyBuffer, bodyStr, contentType);
@@ -246,7 +250,8 @@ async function handleUploadAsset(
     return toHttpResponse(res);
 }
 
-async function handlePresignUploadAsset(bodyStr: string | null) {
+/** Parse a JSON body and forward it to the Lambda handler under the given action. */
+async function forwardJson(bodyStr: string | null, action: string) {
     if (!bodyStr || bodyStr.trim().length === 0) {
         return httpResponse(400, { error: "Request body is required" });
     }
@@ -256,7 +261,7 @@ async function handlePresignUploadAsset(bodyStr: string | null) {
     } catch {
         return httpResponse(400, { error: "Invalid JSON body" });
     }
-    const res = await lambdaHandler({ ...payload, action: "presignuploadasset" } as Parameters<typeof lambdaHandler>[0], {});
+    const res = await lambdaHandler({ ...payload, action } as Parameters<typeof lambdaHandler>[0], {});
     return toHttpResponse(res);
 }
 

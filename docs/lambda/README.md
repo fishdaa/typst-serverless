@@ -118,6 +118,9 @@ npm install && npm run build:layer && npm run build:lambda && \
 - `s3RetentionDays` — S3 lifecycle rule for output PDFs (default: 7)
 - `enableApiGateway` — Enable REST API (default: true)
 - `enableSqs` — Enable SQS for parallelized batch (Phase 5, default: false)
+- `uploadRetentionDays` — Lifecycle expiry for ephemeral presigned job uploads under `uploads/` (default: 1). The `assets/` library is never expired.
+- `maxUploadMB` — Per-object ceiling for presigned uploads, signed into each URL (default: 256)
+- `uploadAllowedOrigins` — Comma-separated origins allowed to `PUT` to presigned URLs (default: `*` — narrow this in production)
 
 **Interactive setup (TUI):**
 
@@ -130,6 +133,8 @@ Prompts for API Gateway, SQS, S3 retention, and customer buckets. Then run `npm 
 ```bash
 pulumi config set enableSqs true
 pulumi config set s3RetentionDays 14
+pulumi config set uploadRetentionDays 1
+pulumi config set uploadAllowedOrigins https://app.example.com
 ```
 
 ## Usage
@@ -224,10 +229,11 @@ const result = JSON.parse(new TextDecoder().decode(Payload));
 
 | Field | Required | Description |
 |-------|----------|-------------|
-| action | No | `compile` (default), `status`, `retrieve`, `batch`, `uploadasset`, `listassets`, `deleteasset` |
-| mainTyp | Yes (compile), mutually exclusive with mainTypS3/mainTypAssetPath | Base64-encoded .typ source |
-| mainTypS3 | Yes (compile), mutually exclusive with mainTyp/mainTypAssetPath | `{ bucket, key }` — must use input bucket |
-| mainTypAssetPath | Yes (compile), mutually exclusive with mainTyp/mainTypS3 | Path of a cached asset (see [Asset cache](#asset-cache)) |
+| action | No | `compile` (default), `status`, `retrieve`, `batch`, `uploadasset`, `presignuploadasset`, `presignuploads`, `presigndownloadasset`, `listassets`, `deleteasset` |
+| mainTyp | Yes (compile), mutually exclusive with the other three | Base64-encoded .typ source |
+| mainTypS3 | Yes (compile), mutually exclusive with the other three | `{ bucket, key }` — must use input bucket |
+| mainTypAssetPath | Yes (compile), mutually exclusive with the other three | Path of a cached asset (see [Asset cache](#asset-cache)) |
+| mainTypUploadRef | Yes (compile), mutually exclusive with the other three | `{ jobId, name }` — an ephemeral [presigned upload](#presigned-uploads) |
 | main | No | Main .typ filename (default `main.typ`); e.g. `document.typ`, `src/report.typ` |
 | storeToS3 | No | If true, store output in S3; return presigned URL |
 | outputKey | No | Custom S3 object key when storeToS3 is true (e.g. `reports/2024.pdf`). Same key overwrites per S3 behavior. |
@@ -340,6 +346,50 @@ await lambda.send(new InvokeCommand({
 - Any field that already accepts `{ bucket, key }` (`mainTypS3`, `fonts[]`/`assets[]`/`extraTyps[]` items, `data`) also accepts `{ assetPath }`; `mainTyp` has the sibling field `mainTypAssetPath`.
 - Requires `TYPST_ASSETS_BUCKET` (or falls back to `TYPST_INPUT_BUCKET`) to be configured; returns 503 otherwise.
 - REST equivalents: `POST /assets`, `GET /assets`, `DELETE /assets/{path}` — see [docs/api/](../api/README.md#post-assets).
+
+## Presigned uploads
+
+`uploadasset` above sends bytes *through* the Lambda, so it inherits the payload limits: 6MB for a sync invoke, 256KB for an async one, 10MB through API Gateway — and base64 costs another ~33%. For anything larger, hand the client a presigned URL and let it `PUT` straight to S3; the compile request then carries only a reference.
+
+This is optional for sync compiles and unavoidable for large async ones.
+
+```javascript
+// 1. Sign the uploads — one call covers the whole job (up to 100 files)
+const { Payload } = await lambda.send(new InvokeCommand({
+  FunctionName: "typst-compile-xxx",
+  Payload: JSON.stringify({
+    action: "presignuploads",
+    files: [
+      { name: "main.typ", contentType: "text/plain", sizeBytes: source.length },
+      { name: "background.png", contentType: "image/png", sizeBytes: bg.length },
+    ],
+  }),
+}));
+const { jobId, uploads } = JSON.parse(JSON.parse(new TextDecoder().decode(Payload)).body);
+
+// 2. PUT the bytes directly to S3, echoing the returned headers verbatim —
+//    they are part of the signature
+for (const upload of uploads) {
+  await fetch(upload.uploadUrl, { method: "PUT", headers: upload.headers, body: bodyFor(upload.name) });
+}
+
+// 3. Reference them by { jobId, name } — identical on the sync and async paths
+await lambda.send(new InvokeCommand({
+  FunctionName: "typst-compile-xxx",
+  Payload: JSON.stringify({
+    action: "compile",
+    mainTypUploadRef: { jobId, name: "main.typ" },
+    assets: [{ name: "background.png", uploadRef: { jobId, name: "background.png" } }],
+    storeToS3: true,
+  }),
+}));
+```
+
+- **presignuploads** — ephemeral job inputs at `uploads/<jobId>/<name>`, expired by an S3 lifecycle rule (`uploadRetentionDays`, default 1 day). Optional `jobId` reuses a namespace.
+- **presignuploadasset** — the same mechanism for the persistent library at `assets/<assetPath>`; single (`assetPath`) or batch (`assets[]`) form. Never expires.
+- `contentType` and `sizeBytes` are required on both: they are signed into the URL, so a leaked URL can only write that content type at that exact byte length. Cap per object: `TYPST_MAX_UPLOAD_BYTES` (default 256MB).
+- Every referenced object is `HEAD`-checked before compiling — a missing one is a `400` naming the absent keys, and on `batch` that check runs before anything is enqueued.
+- REST equivalents: `POST /uploads`, `POST /assets/presign` — see [docs/api/](../api/README.md#large-inputs-presigned-direct-to-s3-uploads).
 
 ## LocalStack testing
 

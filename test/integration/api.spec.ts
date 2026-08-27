@@ -294,4 +294,61 @@ describe("API Gateway handler", () => {
             assert([200, 404, 500].includes(res.statusCode));
         });
     });
+    describe("presigned uploads", () => {
+        it("rejects POST /assets/presign with an empty body", async () => {
+            const res = await handler(apiEvent("POST", "/assets/presign", null));
+            assert.strictEqual(res.statusCode, 400);
+            assert(JSON.parse(res.body).error?.includes("body"));
+        });
+
+        it("rejects POST /assets/presign without sizeBytes", async () => {
+            const res = await handler(
+                apiEvent("POST", "/assets/presign", { assetPath: "demo/bg.png", contentType: "image/png" })
+            );
+            assert.strictEqual(res.statusCode, 400);
+            assert(JSON.parse(res.body).error?.includes("sizeBytes"));
+        });
+
+        it("rejects POST /assets/presign for a disallowed extension", async () => {
+            const res = await handler(
+                apiEvent("POST", "/assets/presign", {
+                    assetPath: "payload.sh",
+                    contentType: "text/x-sh",
+                    sizeBytes: 10,
+                })
+            );
+            assert.strictEqual(res.statusCode, 400);
+            assert(JSON.parse(res.body).error?.includes("allowed extension"));
+        });
+
+        it("routes POST /uploads to the presign-uploads action", async () => {
+            const res = await handler(
+                apiEvent("POST", "/uploads", {
+                    files: [{ name: "bg.png", contentType: "image/png", sizeBytes: 10 }],
+                })
+            );
+            // 200 with an assets bucket configured, 503 without — either proves
+            // the route reached the handler rather than falling through to 404.
+            assert([200, 503].includes(res.statusCode), res.body);
+        });
+
+        it("rejects POST /uploads with an empty body", async () => {
+            const res = await handler(apiEvent("POST", "/uploads", null));
+            assert.strictEqual(res.statusCode, 400);
+        });
+
+        it("rejects POST /uploads with traversal in a file name", async () => {
+            const res = await handler(
+                apiEvent("POST", "/uploads", {
+                    files: [{ name: "../../assets/logo.png", contentType: "image/png", sizeBytes: 10 }],
+                })
+            );
+            assert.strictEqual(res.statusCode, 400);
+        });
+
+        it("sets CORS headers on presign responses", async () => {
+            const res = await handler(apiEvent("POST", "/uploads", { files: [] }));
+            assert.strictEqual(res.headers["Access-Control-Allow-Origin"], "*");
+        });
+    });
 });

@@ -170,6 +170,144 @@ describe("lambda integration", () => {
         });
     });
 
+    describe("presigned uploads (no AWS)", () => {
+        const VALID = { assetPath: "demo/bg.png", contentType: "image/png", sizeBytes: 4096 };
+
+        it("rejects presignuploadasset without assetPath", async () => {
+            const res = await handler({ action: "presignuploadasset", contentType: "image/png", sizeBytes: 1 });
+            assert.strictEqual(res.statusCode, 400);
+            assert(JSON.parse(res.body).error?.includes("assetPath"));
+        });
+
+        it("rejects presignuploadasset without sizeBytes (it is signed into the URL)", async () => {
+            const res = await handler({ action: "presignuploadasset", assetPath: "demo/bg.png", contentType: "image/png" });
+            assert.strictEqual(res.statusCode, 400);
+            assert(JSON.parse(res.body).error?.includes("sizeBytes"));
+        });
+
+        it("rejects presignuploadasset without contentType", async () => {
+            const res = await handler({ action: "presignuploadasset", assetPath: "demo/bg.png", sizeBytes: 10 });
+            assert.strictEqual(res.statusCode, 400);
+            assert(JSON.parse(res.body).error?.includes("contentType"));
+        });
+
+        it("rejects presignuploadasset for a non-input extension", async () => {
+            const res = await handler({ ...VALID, action: "presignuploadasset", assetPath: "payload.sh" });
+            assert.strictEqual(res.statusCode, 400);
+            assert(JSON.parse(res.body).error?.includes("allowed extension"));
+        });
+
+        it("rejects presignuploadasset with path traversal", async () => {
+            const res = await handler({ ...VALID, action: "presignuploadasset", assetPath: "../../evil.png" });
+            assert.strictEqual(res.statusCode, 400);
+        });
+
+        it("rejects presignuploadasset above the upload ceiling", async () => {
+            const res = await handler({
+                ...VALID,
+                action: "presignuploadasset",
+                sizeBytes: 1024 * 1024 * 1024 * 1024,
+            });
+            assert.strictEqual(res.statusCode, 400);
+            assert(JSON.parse(res.body).error?.includes("upload limit"));
+        });
+
+        it("rejects a presign batch beyond the fan-out cap", async () => {
+            const assets = Array.from({ length: 101 }, (_, i) => ({ ...VALID, assetPath: `demo/bg-${i}.png` }));
+            const res = await handler({ action: "presignuploadasset", assets });
+            assert.strictEqual(res.statusCode, 400);
+            assert(JSON.parse(res.body).error?.includes("100"));
+        });
+
+        it("returns 503 for presignuploadasset when no assets bucket configured", async () => {
+            const res = await handler({ ...VALID, action: "presignuploadasset" });
+            assert.strictEqual(res.statusCode, 503);
+        });
+
+        it("returns 503 for a valid presign batch when no assets bucket configured", async () => {
+            const res = await handler({ action: "presignuploadasset", assets: [VALID] });
+            assert.strictEqual(res.statusCode, 503);
+        });
+
+        it("rejects presignuploads without files", async () => {
+            const res = await handler({ action: "presignuploads" });
+            assert.strictEqual(res.statusCode, 400);
+        });
+
+        it("rejects presignuploads with a malformed jobId", async () => {
+            const res = await handler({
+                action: "presignuploads",
+                jobId: "../other-job",
+                files: [{ name: "bg.png", contentType: "image/png", sizeBytes: 10 }],
+            });
+            assert.strictEqual(res.statusCode, 400);
+            assert(JSON.parse(res.body).error?.includes("jobId"));
+        });
+
+        it("rejects presignuploads with traversal in a file name", async () => {
+            const res = await handler({
+                action: "presignuploads",
+                files: [{ name: "../../assets/logo.png", contentType: "image/png", sizeBytes: 10 }],
+            });
+            assert.strictEqual(res.statusCode, 400);
+        });
+
+        it("returns 503 for presignuploads when no assets bucket configured", async () => {
+            const res = await handler({
+                action: "presignuploads",
+                files: [{ name: "bg.png", contentType: "image/png", sizeBytes: 10 }],
+            });
+            assert.strictEqual(res.statusCode, 503);
+        });
+    });
+
+    describe("uploadRef validation (no AWS)", () => {
+        it("rejects a compile with both mainTyp and mainTypUploadRef", async () => {
+            const res = await handler({
+                action: "compile",
+                mainTyp: FIXTURE_B64,
+                mainTypUploadRef: { jobId: "job-1", name: "main.typ" },
+            });
+            assert.strictEqual(res.statusCode, 400);
+            assert(JSON.parse(res.body).error?.includes("only one of"));
+        });
+
+        it("rejects a compile whose mainTypUploadRef escapes the job prefix", async () => {
+            const res = await handler({
+                action: "compile",
+                mainTypUploadRef: { jobId: "job-1", name: "../../assets/other.typ" },
+            });
+            assert.strictEqual(res.statusCode, 400);
+        });
+
+        it("rejects an asset uploadRef with a malformed jobId", async () => {
+            const res = await handler({
+                action: "compile",
+                mainTyp: FIXTURE_B64,
+                assets: [{ name: "bg.png", uploadRef: { jobId: "bad/job", name: "bg.png" } }],
+            });
+            assert.strictEqual(res.statusCode, 400);
+        });
+
+        it("rejects an extraTyps uploadRef that is not an object", async () => {
+            const res = await handler({
+                action: "compile",
+                mainTyp: FIXTURE_B64,
+                extraTyps: [{ name: "lib.typ", uploadRef: "job-1/lib.typ" } as never],
+            });
+            assert.strictEqual(res.statusCode, 400);
+        });
+
+        it("rejects a data uploadRef with a missing name", async () => {
+            const res = await handler({
+                action: "compile",
+                mainTyp: FIXTURE_B64,
+                data: { uploadRef: { jobId: "job-1" } } as never,
+            });
+            assert.strictEqual(res.statusCode, 400);
+        });
+    });
+
     describe("compile (requires typst + AWS)", () => {
         it("compiles with assets (image) and data when typst available", { timeout: 15000 }, async () => {
             assertTypst();

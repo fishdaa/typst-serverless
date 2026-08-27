@@ -3,7 +3,8 @@
 A live, browser-driven demo of every feature the typst-serverless API supports:
 quick compile, multipart file upload, multi-file `#import` projects, JSON data
 binding, output formats (pdf/svg/png) and PDF standards, async compile + status
-polling, SQS-backed batch compile, the asset cache, and webhooks.
+polling, SQS-backed batch compile, presigned direct-to-S3 uploads, the asset
+cache, and webhooks.
 
 It's a static Nuxt (Vue) SPA — no server at runtime — that calls the deployed
 API directly from the browser. Hosting is S3 (private) + CloudFront (Origin
@@ -67,6 +68,16 @@ NUXT_PUBLIC_API_BASE=$(cd ../src/adapters/lambda-layer/pulumi && pulumi stack ou
 
 ## Notes
 
+- The **Presigned Uploads** tab exercises both presign endpoints end to end
+  (`POST /uploads` for ephemeral job inputs, `POST /assets/presign` for the
+  persistent library), including the 400 you get when a compile references an
+  upload whose `PUT` never happened. It needs the browser to reach S3 directly,
+  which the backend's input-bucket CORS rule allows (`uploadAllowedOrigins`,
+  default `*` — narrow it and the demo origin must be included).
+- **Posters** presigns every background in one `POST /uploads` call and uploads
+  them as ephemeral job inputs, so demo runs don't accumulate in the asset
+  library. **Asset Library** uses base64 under 4MB and a presigned direct PUT
+  above it.
 - The batch (SQS) tab requires the backend stack to have `enableSqs: true`
   set (`pulumi config set enableSqs true` in the backend's pulumi dir) — this
   demo stack has it on.

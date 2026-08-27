@@ -123,9 +123,10 @@ export function validateData(data: unknown, dataFile?: unknown): ValidationResul
     if (typeof data === "object" && data !== null && !Array.isArray(data)) {
         const d = data as Record<string, unknown>;
         if (typeof d.assetPath === "string") return validateAssetPath(d.assetPath);
+        if (d.uploadRef !== undefined) return validateUploadRef(d.uploadRef);
         return validateS3Ref(data);
     }
-    return { valid: false, error: "data must be base64 string, { bucket, key }, or { assetPath }" };
+    return { valid: false, error: "data must be base64 string, { bucket, key }, { assetPath }, or { uploadRef }" };
 }
 
 /** Valid asset path: no path traversal, no leading slash, ASCII only, 1-1024 chars. */
@@ -135,6 +136,34 @@ export function validateAssetPath(assetPath: unknown): ValidationResult {
     }
     if (!isValidS3Key(assetPath)) {
         return { valid: false, error: "assetPath invalid: no path traversal (..), no leading slash, ASCII only" };
+    }
+    return { valid: true };
+}
+
+/**
+ * Validate a job id, which groups ephemeral presigned uploads under
+ * uploads/<jobId>/. Same character set as a document id.
+ */
+export function validateJobId(jobId: unknown): ValidationResult {
+    if (!jobId || typeof jobId !== "string") {
+        return { valid: false, error: "jobId is required" };
+    }
+    if (!DOCUMENT_ID_REGEX.test(jobId)) {
+        return { valid: false, error: "jobId must be 1-128 chars, alphanumeric, hyphens, underscores" };
+    }
+    return { valid: true };
+}
+
+/** Validate a reference to an ephemeral job upload: { jobId, name }. */
+export function validateUploadRef(ref: unknown): ValidationResult {
+    if (!ref || typeof ref !== "object" || Array.isArray(ref)) {
+        return { valid: false, error: "uploadRef must be { jobId, name }" };
+    }
+    const r = ref as Record<string, unknown>;
+    const jobIdResult = validateJobId(r.jobId);
+    if (!jobIdResult.valid) return jobIdResult;
+    if (!r.name || typeof r.name !== "string" || !isValidS3Key(r.name)) {
+        return { valid: false, error: "uploadRef.name invalid: no path traversal (..), no leading slash, ASCII only" };
     }
     return { valid: true };
 }
@@ -210,8 +239,9 @@ export function validateExtraTyps(extraTyps: unknown): ValidationResult {
         const hasBase64 = o.base64 != null && typeof o.base64 === "string";
         const hasS3 = o.bucket != null && o.key != null && typeof o.bucket === "string" && typeof o.key === "string";
         const hasAssetPath = typeof o.assetPath === "string";
-        if (!hasBase64 && !hasS3 && !hasAssetPath) {
-            return { valid: false, error: `extraTyps[${i}]: provide base64, bucket+key, or assetPath` };
+        const hasUploadRef = o.uploadRef != null;
+        if (!hasBase64 && !hasS3 && !hasAssetPath && !hasUploadRef) {
+            return { valid: false, error: `extraTyps[${i}]: provide base64, bucket+key, assetPath, or uploadRef` };
         }
         if (hasS3) {
             const s3 = validateS3Ref({ bucket: o.bucket, key: o.key });
@@ -220,6 +250,10 @@ export function validateExtraTyps(extraTyps: unknown): ValidationResult {
         if (hasAssetPath) {
             const ap = validateAssetPath(o.assetPath);
             if (!ap.valid) return { valid: false, error: `extraTyps[${i}]: ${ap.error}` };
+        }
+        if (hasUploadRef) {
+            const ur = validateUploadRef(o.uploadRef);
+            if (!ur.valid) return { valid: false, error: `extraTyps[${i}]: ${ur.error}` };
         }
     }
     return { valid: true };
@@ -236,11 +270,15 @@ export function validateCompileEvent(event: unknown): ValidationResult {
     const hasInline = e.mainTyp && typeof e.mainTyp === "string";
     const hasS3 = e.mainTypS3 && typeof e.mainTypS3 === "object";
     const hasAssetPath = typeof e.mainTypAssetPath === "string";
-    if (!hasInline && !hasS3 && !hasAssetPath) {
-        return { valid: false, error: "mainTyp (base64), mainTypS3 (bucket, key), or mainTypAssetPath is required" };
+    const hasUploadRef = e.mainTypUploadRef != null;
+    if (!hasInline && !hasS3 && !hasAssetPath && !hasUploadRef) {
+        return {
+            valid: false,
+            error: "mainTyp (base64), mainTypS3 (bucket, key), mainTypAssetPath, or mainTypUploadRef is required",
+        };
     }
-    if ([hasInline, hasS3, hasAssetPath].filter(Boolean).length > 1) {
-        return { valid: false, error: "Provide only one of mainTyp, mainTypS3, mainTypAssetPath" };
+    if ([hasInline, hasS3, hasAssetPath, hasUploadRef].filter(Boolean).length > 1) {
+        return { valid: false, error: "Provide only one of mainTyp, mainTypS3, mainTypAssetPath, mainTypUploadRef" };
     }
     if (hasS3) {
         const s3 = validateS3Ref(e.mainTypS3);
@@ -249,6 +287,10 @@ export function validateCompileEvent(event: unknown): ValidationResult {
     if (hasAssetPath) {
         const ap = validateAssetPath(e.mainTypAssetPath);
         if (!ap.valid) return ap;
+    }
+    if (hasUploadRef) {
+        const ur = validateUploadRef(e.mainTypUploadRef);
+        if (!ur.valid) return ur;
     }
     if (e.main !== undefined) {
         const mainResult = validateMainTyp(e.main);

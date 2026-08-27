@@ -3,7 +3,7 @@
  * Typst-supported formats only: PNG, JPEG, GIF, WebP, SVG for images;
  * OTF, TTF, TTC for fonts.
  */
-import { validateS3Key, validateAssetPath } from "./validate.js";
+import { validateS3Key, validateAssetPath, validateUploadRef } from "./validate.js";
 
 /** Allowed image extensions (lowercase) */
 export const ALLOWED_IMAGE_EXTENSIONS = [".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg"];
@@ -13,7 +13,8 @@ export const ALLOWED_FONT_EXTENSIONS = [".otf", ".ttf", ".ttc"];
 
 type AssetType = "image" | "font";
 
-function getExtension(key: string | null | undefined): string | null {
+/** Lowercased file extension including the dot, or null when there is none. */
+export function getExtension(key: string | null | undefined): string | null {
     if (!key || typeof key !== "string") return null;
     const idx = key.lastIndexOf(".");
     if (idx < 0 || idx === key.length - 1) return null;
@@ -57,7 +58,14 @@ export function validateAssetRef(
  * Validate assets array.
  */
 export function validateAssets(
-    assets: Array<{ name?: string; bucket?: string; key?: string; base64?: string; assetPath?: string }> | null | undefined,
+    assets: Array<{
+        name?: string;
+        bucket?: string;
+        key?: string;
+        base64?: string;
+        assetPath?: string;
+        uploadRef?: { jobId?: string; name?: string };
+    }> | null | undefined,
     type: AssetType = "image"
 ) {
     if (!assets || !Array.isArray(assets)) return { valid: true as const };
@@ -79,6 +87,9 @@ export function validateAssets(
         } else if (a.assetPath && typeof a.assetPath === "string") {
             const pathResult = validateAssetPath(a.assetPath);
             if (!pathResult.valid) return { valid: false as const, error: `Asset[${i}]: ${pathResult.error}` };
+        } else if (a.uploadRef != null) {
+            const refResult = validateUploadRef(a.uploadRef);
+            if (!refResult.valid) return { valid: false as const, error: `Asset[${i}]: ${refResult.error}` };
         } else if (a.base64 && typeof a.base64 === "string") {
             const ext = getExtension(a.name);
             const allowed = type === "image" ? ALLOWED_IMAGE_EXTENSIONS : ALLOWED_FONT_EXTENSIONS;
@@ -86,7 +97,7 @@ export function validateAssets(
                 return { valid: false as const, error: `Asset[${i}].name must have allowed extension: ${allowed.join(", ")}` };
             }
         } else {
-            return { valid: false as const, error: `Asset[${i}]: provide bucket+key, assetPath, or base64` };
+            return { valid: false as const, error: `Asset[${i}]: provide bucket+key, assetPath, uploadRef, or base64` };
         }
     }
     return { valid: true as const };
