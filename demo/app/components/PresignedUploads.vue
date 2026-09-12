@@ -272,7 +272,7 @@ async function runMissingUpload() {
     <div v-if="previewUrl" style="margin-top: 14px">
       <label>Preview</label>
       <div class="preview">
-        <iframe :src="previewUrl" title="Compiled PDF preview" />
+        <PdfPreview :url="previewUrl" />
       </div>
     </div>
 

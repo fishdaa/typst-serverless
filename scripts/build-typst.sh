@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Builds the typst CLI binary from the fishdaa/typst fork (branch: optimize-large-png)
+# Builds the typst CLI binary from the fishdaa/typst fork release.
 # instead of relying on the upstream release. Prefers a local sibling checkout at
 # ../typst (so in-progress fork changes are picked up immediately); falls back to
 # cloning the public repo into .typst-src/ otherwise.
@@ -13,7 +13,7 @@ STAMP_FILE="$BIN_DIR/.typst-rev"
 
 TYPST_SRC_DIR="${TYPST_SRC_DIR:-$ROOT_DIR/../typst}"
 TYPST_REPO="${TYPST_REPO:-https://github.com/fishdaa/typst.git}"
-TYPST_REF="${TYPST_REF:-optimize-large-png}"
+TYPST_REF="${TYPST_REF:-2026.09.0}"
 
 mkdir -p "$BIN_DIR"
 

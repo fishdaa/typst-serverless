@@ -115,17 +115,23 @@ new aws.s3.BucketLifecycleConfigurationV2("typst-output-lifecycle", {
   ],
 });
 
-// Typst Layer: use pre-built zip if exists
-const layerZip = path.join(
-  projectRoot,
-  "src/adapters/lambda-layer",
-  lambdaArchitecture === "x86_64" ? "typst-layer.zip" : `typst-layer-${lambdaArchitecture}.zip`,
-);
-let typstLayer: aws.lambda.LayerVersion | undefined;
+// Typst layers are architecture-specific. Keep both variants managed by the
+// stack so switching the demo/function architecture does not discard the
+// other published layer.
+const layerDir = path.join(projectRoot, "src/adapters/lambda-layer");
+const layerZips = {
+  x86_64: path.join(layerDir, "typst-layer.zip"),
+  arm64: path.join(layerDir, "typst-layer-arm64.zip"),
+};
 
-if (fs.existsSync(layerZip)) {
-  typstLayer = new aws.lambda.LayerVersion("typst-layer", {
-    code: new pulumi.asset.FileArchive(layerZip),
+function createTypstLayer(
+  resourceName: string,
+  architecture: "x86_64" | "arm64",
+  archivePath: string,
+): aws.lambda.LayerVersion | undefined {
+  if (!fs.existsSync(archivePath)) return undefined;
+  return new aws.lambda.LayerVersion(resourceName, {
+    code: new pulumi.asset.FileArchive(archivePath),
     layerName: "typst-binary",
     // Lambda layers contain the native Typst executable, not Node modules.
     // They are therefore usable by Node.js, Go, and Rust custom-runtime
@@ -136,8 +142,16 @@ if (fs.existsSync(layerZip)) {
       "nodejs24.x",
       "provided.al2023",
     ],
-    compatibleArchitectures: [lambdaArchitecture],
+    compatibleArchitectures: [architecture],
   });
+}
+
+const x86Layer = createTypstLayer("typst-layer", "x86_64", layerZips.x86_64);
+const arm64Layer = createTypstLayer("typst-layer-arm64", "arm64", layerZips.arm64);
+const typstLayer = lambdaArchitecture === "arm64" ? arm64Layer : x86Layer;
+
+if (!typstLayer) {
+  throw new Error(`Missing Typst layer archive for ${lambdaArchitecture}: ${layerZips[lambdaArchitecture]}`);
 }
 
 // IAM role for Lambda
@@ -362,4 +376,6 @@ export const assetsBucketName = inputBucket.id;
 export const apiUrl = apiUrlOutput;
 export const batchQueueUrl = batchQueue?.url;
 export const layerArn = typstLayer?.arn;
+export const x86LayerArn = x86Layer?.arn;
+export const arm64LayerArn = arm64Layer?.arn;
 export const architecture = lambdaArchitecture;

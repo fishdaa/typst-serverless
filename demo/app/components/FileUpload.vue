@@ -90,7 +90,7 @@ async function run() {
       <div>
         <label>Preview</label>
         <div class="preview">
-          <iframe v-if="previewUrl" :src="previewUrl" />
+          <PdfPreview v-if="previewUrl" :url="previewUrl" />
           <span v-else style="color:#888">No PDF yet</span>
         </div>
       </div>

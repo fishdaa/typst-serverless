@@ -364,27 +364,29 @@ function sizeLabel(key: string): string {
 
     <div v-if="cached.length" style="margin-top: 12px">
       <label>Caches in the asset library (<code>assets/campaign/</code>)</label>
-      <table>
-        <thead>
-          <tr><th>Cache</th><th>Size</th><th>Bytes</th><th></th></tr>
-        </thead>
-        <tbody>
-          <tr v-for="entry in cached" :key="entry.id">
-            <td><code>{{ entry.id }}</code></td>
-            <td>{{ entry.sizeKey ? sizeLabel(entry.sizeKey) : '—' }}</td>
-            <td>{{ formatBytes(entry.bytes) }}</td>
-            <td>
-              <button
-                :disabled="!entry.complete || cache?.id === entry.id"
-                @click="adopt(entry)"
-              >
-                {{ cache?.id === entry.id ? 'In use' : entry.complete ? 'Reuse' : 'Incomplete' }}
-              </button>
-              <button class="secondary" @click="evict(entry)">Delete</button>
-            </td>
-          </tr>
-        </tbody>
-      </table>
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr><th>Cache</th><th>Size</th><th>Bytes</th><th></th></tr>
+          </thead>
+          <tbody>
+            <tr v-for="entry in cached" :key="entry.id">
+              <td><code>{{ entry.id }}</code></td>
+              <td>{{ entry.sizeKey ? sizeLabel(entry.sizeKey) : '—' }}</td>
+              <td>{{ formatBytes(entry.bytes) }}</td>
+              <td>
+                <button
+                  :disabled="!entry.complete || cache?.id === entry.id"
+                  @click="adopt(entry)"
+                >
+                  {{ cache?.id === entry.id ? 'In use' : entry.complete ? 'Reuse' : 'Incomplete' }}
+                </button>
+                <button class="secondary" @click="evict(entry)">Delete</button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
       <p class="helper">
         These persist until deleted — that is the difference from
         <code>POST /uploads</code>, whose keys an S3 lifecycle rule expires after a day.
@@ -418,21 +420,23 @@ function sizeLabel(key: string): string {
         </select>
       </div>
     </div>
-    <table>
-      <thead>
-        <tr><th>Title</th><th>Subtitle</th><th>Tagline</th><th>Booth</th><th>Accent</th><th></th></tr>
-      </thead>
-      <tbody>
-        <tr v-for="(row, i) in rows" :key="i">
-          <td><input v-model="row.title" /></td>
-          <td><input v-model="row.subtitle" /></td>
-          <td><input v-model="row.tagline" /></td>
-          <td><input v-model="row.booth" style="width: 80px" /></td>
-          <td><input v-model="row.accent" type="color" style="width: auto" /></td>
-          <td><button @click="removeRow(i)">Remove</button></td>
-        </tr>
-      </tbody>
-    </table>
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr><th>Title</th><th>Subtitle</th><th>Tagline</th><th>Booth</th><th>Accent</th><th></th></tr>
+        </thead>
+        <tbody>
+          <tr v-for="(row, i) in rows" :key="i">
+            <td><input v-model="row.title" /></td>
+            <td><input v-model="row.subtitle" /></td>
+            <td><input v-model="row.tagline" /></td>
+            <td><input v-model="row.booth" style="width: 80px" /></td>
+            <td><input v-model="row.accent" type="color" style="width: auto" /></td>
+            <td><button @click="removeRow(i)">Remove</button></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
     <div class="row" style="margin: 10px 0">
       <button @click="addRow">+ Add poster</button>
       <button :disabled="batchLoading || !rows.length || !cache || cacheStale" @click="runBatch">
@@ -453,22 +457,24 @@ function sizeLabel(key: string): string {
     </div>
     <div v-if="batchError" class="status-line error">{{ batchError }}</div>
 
-    <table v-if="results.length">
-      <thead>
-        <tr><th>Document</th><th>Status</th><th>Result</th></tr>
-      </thead>
-      <tbody>
-        <tr v-for="r in results" :key="r.documentId">
-          <td>{{ r.documentId }}</td>
-          <td><span class="pill" :class="r.status">{{ r.status }}</span></td>
-          <td>
-            <a v-if="r.s3Url" :href="r.s3Url" download rel="noopener">Download</a>
-            <span v-else-if="r.error" class="status-line error">{{ r.error }}</span>
-            <span v-else class="status-line muted">—</span>
-          </td>
-        </tr>
-      </tbody>
-    </table>
+    <div v-if="results.length" class="table-scroll">
+      <table>
+        <thead>
+          <tr><th>Document</th><th>Status</th><th>Result</th></tr>
+        </thead>
+        <tbody>
+          <tr v-for="r in results" :key="r.documentId">
+            <td>{{ r.documentId }}</td>
+            <td><span class="pill" :class="r.status">{{ r.status }}</span></td>
+            <td>
+              <a v-if="r.s3Url" :href="r.s3Url" download rel="noopener">Download</a>
+              <span v-else-if="r.error" class="status-line error">{{ r.error }}</span>
+              <span v-else class="status-line muted">—</span>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
 
     <details v-if="docPreview" style="margin-top: 16px">
       <summary class="helper">Document sent for the first poster</summary>

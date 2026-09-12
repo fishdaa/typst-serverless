@@ -252,19 +252,21 @@ async function runBatch() {
       Each row becomes its own poster at the same size/PPI, enqueued together via
       <code>POST /batch</code> with <code>storeToS3: true</code>.
     </p>
-    <table>
-      <thead>
-        <tr><th>Title</th><th>Subtitle</th><th>Accent</th><th></th></tr>
-      </thead>
-      <tbody>
-        <tr v-for="(row, i) in rows" :key="i">
-          <td><input v-model="row.title" /></td>
-          <td><input v-model="row.subtitle" /></td>
-          <td><input v-model="row.accent" type="color" style="width: auto" /></td>
-          <td><button @click="removeRow(i)">Remove</button></td>
-        </tr>
-      </tbody>
-    </table>
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr><th>Title</th><th>Subtitle</th><th>Accent</th><th></th></tr>
+        </thead>
+        <tbody>
+          <tr v-for="(row, i) in rows" :key="i">
+            <td><input v-model="row.title" /></td>
+            <td><input v-model="row.subtitle" /></td>
+            <td><input v-model="row.accent" type="color" style="width: auto" /></td>
+            <td><button @click="removeRow(i)">Remove</button></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
     <div class="row" style="margin: 10px 0">
       <button @click="addRow">+ Add poster</button>
       <button :disabled="batchLoading || !rows.length" @click="runBatch">
@@ -273,21 +275,23 @@ async function runBatch() {
       <span v-if="batchId" class="status-line muted">batchId: {{ batchId }}</span>
     </div>
     <div v-if="batchError" class="status-line error">{{ batchError }}</div>
-    <table v-if="results.length">
-      <thead>
-        <tr><th>Document</th><th>Status</th><th>Result</th></tr>
-      </thead>
-      <tbody>
-        <tr v-for="r in results" :key="r.documentId">
-          <td>{{ r.documentId }}</td>
-          <td><span class="pill" :class="r.status">{{ r.status }}</span></td>
-          <td>
-            <a v-if="r.s3Url" :href="r.s3Url" download rel="noopener">Download</a>
-            <span v-else-if="r.error" class="status-line error">{{ r.error }}</span>
-            <span v-else class="status-line muted">—</span>
-          </td>
-        </tr>
-      </tbody>
-    </table>
+    <div v-if="results.length" class="table-scroll">
+      <table>
+        <thead>
+          <tr><th>Document</th><th>Status</th><th>Result</th></tr>
+        </thead>
+        <tbody>
+          <tr v-for="r in results" :key="r.documentId">
+            <td>{{ r.documentId }}</td>
+            <td><span class="pill" :class="r.status">{{ r.status }}</span></td>
+            <td>
+              <a v-if="r.s3Url" :href="r.s3Url" download rel="noopener">Download</a>
+              <span v-else-if="r.error" class="status-line error">{{ r.error }}</span>
+              <span v-else class="status-line muted">—</span>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
   </div>
 </template>

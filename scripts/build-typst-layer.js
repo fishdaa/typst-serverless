@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 /**
  * Build Typst Lambda Layer.
- * Builds the typst CLI from source (fishdaa/typst fork, branch
- * optimize-large-png) targeting musl so it runs on Amazon Linux (Lambda),
+ * Builds the typst CLI from source (fishdaa/typst fork release) targeting musl
+ * so it runs on Amazon Linux (Lambda),
  * then zips it up for a Lambda Layer.
  *
  * The layer only contains a native executable, so it can be attached to
@@ -15,7 +15,7 @@ import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const TYPST_REPO = process.env.TYPST_REPO || "https://github.com/fishdaa/typst.git";
-const TYPST_REF = process.env.TYPST_REF || "optimize-large-png";
+const TYPST_REF = process.env.TYPST_REF || "2026.09.0";
 const LAMBDA_ARCH = process.env.LAMBDA_ARCH || "x86_64";
 const targets = {
     x86_64: { platform: "linux/amd64", rust: "x86_64-unknown-linux-musl" },

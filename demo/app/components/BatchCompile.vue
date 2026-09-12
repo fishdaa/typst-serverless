@@ -55,21 +55,23 @@ async function run() {
       <span v-if="batchId" class="status-line muted">batchId: {{ batchId }}</span>
     </div>
     <div v-if="error" class="status-line error">{{ error }}</div>
-    <table v-if="results.length">
-      <thead>
-        <tr><th>Document</th><th>Status</th><th>Result</th></tr>
-      </thead>
-      <tbody>
-        <tr v-for="r in results" :key="r.documentId">
-          <td>{{ r.documentId }}</td>
-          <td><span class="pill" :class="r.status">{{ r.status }}</span></td>
-          <td>
-            <a v-if="r.s3Url" :href="r.s3Url" target="_blank" rel="noopener">Download</a>
-            <span v-else-if="r.error" class="status-line error">{{ r.error }}</span>
-            <span v-else class="status-line muted">—</span>
-          </td>
-        </tr>
-      </tbody>
-    </table>
+    <div v-if="results.length" class="table-scroll">
+      <table>
+        <thead>
+          <tr><th>Document</th><th>Status</th><th>Result</th></tr>
+        </thead>
+        <tbody>
+          <tr v-for="r in results" :key="r.documentId">
+            <td>{{ r.documentId }}</td>
+            <td><span class="pill" :class="r.status">{{ r.status }}</span></td>
+            <td>
+              <a v-if="r.s3Url" :href="r.s3Url" target="_blank" rel="noopener">Download</a>
+              <span v-else-if="r.error" class="status-line error">{{ r.error }}</span>
+              <span v-else class="status-line muted">—</span>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
   </div>
 </template>

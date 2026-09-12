@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { SIMPLE_DOC } from '~/utils/samples'
 import { textToBase64, base64ToBlobUrl } from '~/utils/encoding'
+import { onBeforeUnmount } from 'vue'
 
 const { compile } = useApi()
 
@@ -12,6 +13,7 @@ const previewUrl = ref('')
 async function run() {
   loading.value = true
   error.value = ''
+  if (previewUrl.value) URL.revokeObjectURL(previewUrl.value)
   previewUrl.value = ''
   try {
     const result = await compile({ mainTyp: textToBase64(source.value) })
@@ -22,6 +24,10 @@ async function run() {
     loading.value = false
   }
 }
+
+onBeforeUnmount(() => {
+  if (previewUrl.value) URL.revokeObjectURL(previewUrl.value)
+})
 </script>
 
 <template>
@@ -43,7 +49,7 @@ async function run() {
       <div>
         <label>Preview</label>
         <div class="preview">
-          <iframe v-if="previewUrl" :src="previewUrl" />
+          <PdfPreview v-if="previewUrl" :url="previewUrl" />
           <span v-else style="color:#888">No PDF yet</span>
         </div>
       </div>

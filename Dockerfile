@@ -1,11 +1,11 @@
 # Phase 1: Docker packaging for containerized Typst compilation
-# Typst binary: built from source from the fishdaa/typst fork (branch
-# optimize-large-png), which carries perf patches for large raster/poster PNG
+# Typst binary: built from the fishdaa/typst fork release, which carries perf
+# patches for large raster/poster PNG
 # export (fast image resampling, SVG dedup, PDF tiling pattern caching).
 FROM rust:1-alpine AS typst-builder
 RUN apk add --no-cache git musl-dev perl make
 ARG TYPST_REPO=https://github.com/fishdaa/typst.git
-ARG TYPST_REF=optimize-large-png
+ARG TYPST_REF=2026.09.0
 RUN git clone --depth 1 --branch ${TYPST_REF} ${TYPST_REPO} /typst-src
 WORKDIR /typst-src
 RUN cargo build --release --locked -p typst-cli --features vendor-openssl

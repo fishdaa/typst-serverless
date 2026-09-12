@@ -151,7 +151,7 @@ onMounted(refresh)
           <button :disabled="busy || !compilePath" @click="compileWithAsset">Compile with this asset</button>
         </div>
         <div class="preview">
-          <iframe v-if="previewUrl" :src="previewUrl" title="Compiled PDF preview" />
+          <PdfPreview v-if="previewUrl" :url="previewUrl" />
           <span v-else class="muted">Your PDF preview will appear here</span>
         </div>
       </div>
@@ -164,19 +164,21 @@ onMounted(refresh)
         </div>
         <button class="secondary refresh-button" :disabled="busy" @click="refresh">Refresh</button>
       </div>
-      <table v-if="assets.length">
-        <thead><tr><th>Asset</th><th>Size</th><th><span class="sr-only">Actions</span></th></tr></thead>
-        <tbody>
-          <tr v-for="a in assets" :key="a.assetPath">
-            <td class="asset-path" :title="a.assetPath">{{ a.assetPath }}</td>
-            <td class="asset-size">{{ formatBytes(a.size) }}</td>
-            <td class="asset-action">
-              <button class="secondary" :disabled="busy" @click="download(a.assetPath)">Download</button>
-              <button class="secondary" :disabled="busy" @click="remove(a.assetPath)">Remove</button>
-            </td>
-          </tr>
-        </tbody>
-      </table>
+      <div v-if="assets.length" class="table-scroll">
+        <table>
+          <thead><tr><th>Asset</th><th>Size</th><th><span class="sr-only">Actions</span></th></tr></thead>
+          <tbody>
+            <tr v-for="a in assets" :key="a.assetPath">
+              <td class="asset-path" :title="a.assetPath">{{ a.assetPath }}</td>
+              <td class="asset-size">{{ formatBytes(a.size) }}</td>
+              <td class="asset-action">
+                <button class="secondary" :disabled="busy" @click="download(a.assetPath)">Download</button>
+                <button class="secondary" :disabled="busy" @click="remove(a.assetPath)">Remove</button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
       <div v-else class="empty-state">
         <span class="empty-icon">◌</span>
         <strong>No assets yet</strong>

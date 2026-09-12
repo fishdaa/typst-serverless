@@ -9,7 +9,7 @@ Build the layer for the function architecture:
 
 ```bash
 npm run build:layer                         # x86_64 (backward-compatible zip)
-LAMBDA_ARCH=arm64 npm run build:layer       # arm64 zip
+npm run build:layer:arm64                   # arm64 zip
 ```
 
 Select the matching architecture in Pulumi with

@@ -23,9 +23,13 @@ npm run build:layer
 pulumi config set lambdaArchitecture x86_64
 
 # Or arm64:
-LAMBDA_ARCH=arm64 npm run build:layer
+LAMBDA_ARCH=arm64 npm run build:layer:arm64
 pulumi config set lambdaArchitecture arm64
 ```
+
+Build both archives before a multi-architecture deployment. Pulumi publishes
+and manages both layer versions, then attaches the one matching the configured
+function architecture.
 
 Go and Rust handlers can invoke `/opt/bin/typst` with the same CLI contract as
 the container adapter. The layer is architecture-specific; do not attach an

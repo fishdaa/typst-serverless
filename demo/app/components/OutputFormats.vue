@@ -63,7 +63,7 @@ async function run() {
       <div>
         <label>Preview</label>
         <div class="preview">
-          <iframe v-if="previewUrl && previewKind === 'pdf'" :src="previewUrl" />
+          <PdfPreview v-if="previewUrl && previewKind === 'pdf'" :url="previewUrl" />
           <img v-else-if="previewUrl" :src="previewUrl" style="max-height:340px;object-fit:contain" />
           <span v-else style="color:#888">No output yet</span>
         </div>
